@@ -5,11 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第6章 初始化：训练的起跑线</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.9rem,4.6vw,2.9rem); line-height:1.2; letter-spacing:-.03em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.08rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        .main-content h3 { color:#134e4a; margin:2rem 0 .7rem; }
+        p { line-height:1.85; }
+        table { display:block; width:100%; overflow-x:auto; border-collapse:collapse; font-size:.9rem; }
+        th, td { border-bottom:1px solid var(--border); text-align:left; padding:.6rem; }
+        pre { overflow:auto; max-width:100%; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .math-inline { font-family:"Cambria Math","STIX Two Math",serif; vertical-align:-.05em; }
+        .math-equation { margin:1.6rem 0; padding:.5rem 0; border-block:1px solid var(--border); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; }
+        .math-scroll:focus-visible, [data-math-scroll]:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+        .math-scroll math[display="block"] { width:max-content; min-width:100%; }
+        button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .status { min-height:1.5em; color:var(--accent); font-weight:600; }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { position:static; border-right:0; } }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +74,13 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>初始化——"一次惨痛的教训是acc只能到70%，改成Xavier后acc到98%"</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>初始化：训练的起跑线</h1>
+            <p class="dek">为什么参数必须随机初始化、Xavier 与 He 的方差保持公式如何推导、换错初始化为何能让准确率从 70% 跳到 98%——起跑线决定上限。</p>
+        </header>
+        <h2>初始化——“一次惨痛的教训是acc只能到70%，改成Xavier后acc到98%”</h2>
 
         <p>大家好，我是你们的讲师。知乎上有一条很火的回答："一次惨痛的教训是用初始化cnn的参数，最后acc只能到70%多，仅仅改成xavier，acc可以到98%。"——这不是段子，这是真实发生的。初始化方法选错了，后面再怎么调LR、换优化器、加数据，都像是在用错了起跑线的赛道上比赛。</p>
 
@@ -73,7 +110,13 @@
 
         <p>推导开始：假设输入x和权重W独立同分布，均值都是0。对线性层 y = Wx：</p>
 
-        <pre><code>Var(y) = n_in · Var(W) · Var(x)</code></pre>
+        <div class="math-equation" role="group" aria-label="线性层方差传播">
+            <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="线性层方差传播，可横向滚动">
+                <math display="block" aria-label="Var(y) 等于 n_in 乘 Var(W) 乘 Var(x)">
+                    <mrow><mi>Var</mi><mo>(</mo><mi>y</mi><mo>)</mo><mo>=</mo><msub><mi>n</mi><mi>in</mi></msub><mo>&#x22C5;</mo><mi>Var</mi><mo>(</mo><mi>W</mi><mo>)</mo><mo>&#x22C5;</mo><mi>Var</mi><mo>(</mo><mi>x</mi><mo>)</mo></mrow>
+                </math>
+            </div>
+        </div>
 
         <p>其中n_in是输入神经元的数量。要保持Var(y) = Var(x)（前向方差不变），需要：</p>
 
@@ -85,7 +128,13 @@
 
         <p>但是n_in和n_out通常不相等。Xavier的解决方案是取两者的调和平均：</p>
 
-        <pre><code>Var(W) = 2 / (n_in + n_out)</code></pre>
+        <div class="math-equation" role="group" aria-label="Xavier 初始化方差">
+            <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="Xavier 初始化方差，可横向滚动">
+                <math display="block" aria-label="Var(W) 等于 2 除以 n_in 加 n_out">
+                    <mrow><mi>Var</mi><mo>(</mo><mi>W</mi><mo>)</mo><mo>=</mo><mfrac><mn>2</mn><mrow><msub><mi>n</mi><mi>in</mi></msub><mo>+</mo><msub><mi>n</mi><mi>out</mi></msub></mrow></mfrac></mrow>
+                </math>
+            </div>
+        </div>
 
         <p>对应两种分布的实现：</p>
 
@@ -127,6 +176,77 @@
         </ul>
 
         <p>PyTorch的nn.Linear和nn.Conv2d默认使用Kaiming Uniform初始化（nonlinearity='leaky_relu'），会自动根据激活函数调整缩放因子。</p>
+
+        <figure id="variance-figure">
+            <svg role="img" aria-labelledby="vf-title vf-desc" viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+                <title id="vf-title">初始化缩放对激活方差逐层传播的影响</title>
+                <desc id="vf-desc">横轴为层数，纵轴为激活值方差的以 2 为底的对数。方差保持适当时曲线水平；初始化方差偏大时曲线逐层上升导致梯度爆炸；偏小时逐层下降导致梯度消失。</desc>
+                <rect width="640" height="300" rx="16" fill="#f3f9f6"/>
+                <line x1="60" y1="260" x2="610" y2="260" stroke="#53676d" stroke-width="2"/>
+                <line x1="60" y1="30" x2="60" y2="260" stroke="#53676d" stroke-width="2"/>
+                <path d="M60 140 L600 140" fill="none" stroke="#147f80" stroke-width="4"/>
+                <path d="M60 140 L420 44" fill="none" stroke="#d06d4d" stroke-width="4"/>
+                <path d="M60 140 L420 236" fill="none" stroke="#7461ba" stroke-width="4"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="13" fill="#203035">
+                    <text x="440" y="46" fill="#d06d4d">初始化方差偏大 → 梯度爆炸</text>
+                    <text x="440" y="240" fill="#7461ba">偏小 → 梯度消失</text>
+                    <text x="440" y="134" fill="#147f80">方差保持 → 稳定</text>
+                    <text x="300" y="284" text-anchor="middle" fill="#53676d">层数 L →</text>
+                    <text x="14" y="24" fill="#53676d">log₂ 激活方差</text>
+                </g>
+            </svg>
+            <figcaption>激活方差随层数的三种走向（教学示意，基于无偏置线性层 + 激活的方差近似）：初始化方差合适时各层方差基本一致，偏大则指数上升至饱和/爆炸，偏小则指数衰减至消失。好初始化的目标就是让中间那条曲线尽量水平。</figcaption>
+        </figure>
+
+        <h3>动手：初始化与激活函数是否匹配</h3>
+        <p>用无偏置线性层的方差近似做演示：tanh 前向不改变方差，ReLU 会去掉约一半方差。点击组合查看激活方差逐层变化（教学示意）。</p>
+        <div class="control-row" role="group" aria-label="初始化与激活组合">
+            <button type="button" data-combo="tanh-xavier" aria-pressed="false">tanh · Xavier</button>
+            <button type="button" data-combo="tanh-he" aria-pressed="false">tanh · He</button>
+            <button type="button" data-combo="relu-xavier" aria-pressed="true">ReLU · Xavier</button>
+            <button type="button" data-combo="relu-he" aria-pressed="false">ReLU · He</button>
+        </div>
+        <svg id="act-plot" viewBox="0 0 600 220" role="img" aria-labelledby="act-title" xmlns="http://www.w3.org/2000/svg">
+            <title id="act-title">不同初始化与激活组合下激活方差随层数的变化（教学示意）</title>
+            <line x1="50" y1="180" x2="590" y2="180" stroke="#53676d" stroke-width="2"/>
+            <line x1="50" y1="20" x2="50" y2="180" stroke="#53676d" stroke-width="2"/>
+            <text x="50" y="200" font-size="12" fill="#53676d">层 0</text>
+            <text x="500" y="200" font-size="12" fill="#53676d">层 12</text>
+            <text x="8" y="26" font-size="12" fill="#53676d">log₂ 方差</text>
+            <polyline id="act-line" fill="none" stroke="#147f80" stroke-width="3" points=""/>
+        </svg>
+        <p class="status" id="act-status" role="status" aria-live="polite"></p>
+        <script>
+        (function () {
+            var line = document.getElementById('act-line');
+            var status = document.getElementById('act-status');
+            var buttons = document.querySelectorAll('[data-combo]');
+            var factor = { 'tanh-xavier': 1, 'tanh-he': 2, 'relu-xavier': 0.5, 'relu-he': 1 };
+            var note = {
+                'tanh-xavier': 'tanh + Xavier：方差保持，曲线水平，是经典匹配。',
+                'tanh-he': 'tanh + He：每层方差翻倍，曲线上升，后期饱和/爆炸。',
+                'relu-xavier': 'ReLU + Xavier：ReLU 丢掉一半方差，曲线逐层下降，深层梯度消失。',
+                'relu-he': 'ReLU + He：正好补偿一半，方差保持，曲线水平。'
+            };
+            function render(kind) {
+                var f = factor[kind], pts = [];
+                for (var L = 0; L <= 12; L++) {
+                    var v = Math.log2(Math.pow(f, L));
+                    var y = Math.max(24, Math.min(176, 100 - v * 11));
+                    pts.push((50 + L * 45).toFixed(1) + ',' + y.toFixed(1));
+                }
+                line.setAttribute('points', pts.join(' '));
+                status.textContent = note[kind];
+            }
+            buttons.forEach(function (b) {
+                b.addEventListener('click', function () {
+                    buttons.forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+                    render(b.getAttribute('data-combo'));
+                });
+            });
+            render('relu-xavier');
+        })();
+        </script>
 
         <div class="highlight">
             <strong>关键对比：</strong>Xavier和He的选择完全由激活函数决定。tanh/sigmoid → Xavier（Glorot）。ReLU/LeakyReLU/PReLU → He（Kaiming）。选错了，轻则收敛变慢，重则完全不收敛。在知乎上有位答主分享的案例：用错初始化，acc从98%掉到70%。这28个百分点的差距，就是一行代码的区别。
@@ -282,12 +402,21 @@
 
         <p>下一章我们将进入一个更宏大的主题——<strong>归一化层：训练稳定性的基石</strong>。如果说初始化解决了训练的起点问题，归一化层解决的是训练<strong>过程</strong>中的分布偏移问题。我们会深入解析Batch Normalization、Layer Normalization、Group Normalization的原理、适用场景和选型策略。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Glorot &amp; Bengio (2010),《Understanding the difficulty of training deep feedforward neural networks》, AISTATS（Xavier / Glorot 初始化）。</li>
+                <li>He, Zhang, Ren, Sun,《Delving Deep into Rectifiers》, <a href="https://arxiv.org/abs/1502.01852">arXiv:1502.01852</a>（He / Kaiming 初始化与 ReLU 的方差修正）。</li>
+                <li>Saxe, McClelland, Ganguli,《Exact solutions to the nonlinear dynamics of learning in deep linear networks》, <a href="https://arxiv.org/abs/1312.6120">arXiv:1312.6120</a>（正交初始化与深度网络的动态分析）。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="05.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="07.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
 </body>
