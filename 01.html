@@ -5,11 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第1章 调参之道：从炼丹到科学</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.9rem,4.6vw,2.9rem); line-height:1.2; letter-spacing:-.03em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.08rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        .main-content h3 { color:#134e4a; margin:2rem 0 .7rem; }
+        p { line-height:1.85; }
+        table { display:block; width:100%; overflow-x:auto; border-collapse:collapse; font-size:.9rem; }
+        th, td { border-bottom:1px solid var(--border); text-align:left; padding:.6rem; }
+        pre { overflow:auto; max-width:100%; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .math-equation { margin:1.6rem 0; padding:.5rem 0; border-block:1px solid var(--border); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; }
+        .math-scroll:focus-visible, [data-math-scroll]:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+        button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .status { min-height:1.5em; color:var(--accent); font-weight:600; }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { position:static; border-right:0; } }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html" class="active">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +72,13 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>欢迎来到"深度学习调参"的世界</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>调参之道：从炼丹到科学</h1>
+            <p class="dek">把深度学习调参从“凭感觉的玄学”变成可归因、可复现、可迁移的科学方法：控制变量、先诊断再下手、记录一切。</p>
+        </header>
+        <h2>欢迎来到“深度学习调参”的世界</h2>
 
         <p>大家好，我是你们的讲师。欢迎来到<strong>深度学习调参</strong>这门课程。</p>
 
@@ -87,6 +122,39 @@
             <li><strong>训练集loss不降，验证集也不降</strong> → 大概率是<strong>代码bug</strong>。不要怀疑神经网络的能力，先怀疑自己的实现。</li>
         </ul>
 
+        <figure id="diag-figure">
+            <svg role="img" aria-labelledby="dg-title dg-desc" viewBox="0 0 760 360" xmlns="http://www.w3.org/2000/svg">
+                <title id="dg-title">先诊断再下手：四类 loss 走向对应的第一优先动作</title>
+                <desc id="dg-desc">从“训练 loss 与验证 loss 走向”出发，分为四类：两者都高为欠拟合，训练低验证高为过拟合，两者都低但业务指标差为目标不一致，两者都不降为代码 bug，并各自对应不同的优先动作。</desc>
+                <rect width="760" height="360" rx="16" fill="#f3f9f6"/>
+                <rect x="290" y="16" width="180" height="52" rx="12" fill="#d6f1eb" stroke="#147f80"/>
+                <text x="380" y="48" text-anchor="middle" font-size="16" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">先诊断：两个 loss</text>
+                <g stroke="#53676d" stroke-width="2" fill="none" marker-end="url(#dg-arrow)">
+                    <path d="M380 68 L92 182"/><path d="M380 68 L284 182"/><path d="M380 68 L476 182"/><path d="M380 68 L668 182"/>
+                </g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" text-anchor="middle">
+                    <rect x="8" y="188" width="168" height="136" rx="12" fill="#ffecd9" stroke="#d06d4d"/>
+                    <rect x="200" y="188" width="168" height="136" rx="12" fill="#fff3cd" stroke="#916c22"/>
+                    <rect x="392" y="188" width="168" height="136" rx="12" fill="#ebe5ff" stroke="#7461ba"/>
+                    <rect x="584" y="188" width="168" height="136" rx="12" fill="#fde2e2" stroke="#b91c1c"/>
+                    <g fill="#203035" font-size="14">
+                        <text x="92" y="214">训练高 · 验证高</text>
+                        <text x="284" y="214">训练低 · 验证高</text>
+                        <text x="476" y="214">两者低 · 业务差</text>
+                        <text x="668" y="214">两者都不降</text>
+                    </g>
+                    <g fill="#53676d" font-size="12.5">
+                        <text x="92" y="246">欠拟合</text><text x="92" y="270">先查学习率，</text><text x="92" y="292">再加大容量，</text><text x="92" y="314">不要先加正则</text>
+                        <text x="284" y="246">过拟合</text><text x="284" y="270">加数据 &gt; 加正则</text><text x="284" y="292">&gt; 降模型容量</text>
+                        <text x="476" y="246">目标不一致</text><text x="476" y="270">损失函数与业务</text><text x="476" y="292">指标有偏差，</text><text x="476" y="314">回头重设目标</text>
+                        <text x="668" y="246">代码 bug</text><text x="668" y="270">查 dataloader、</text><text x="668" y="292">label 对齐、</text><text x="668" y="314">loss 实现</text>
+                    </g>
+                </g>
+                <defs><marker id="dg-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#53676d"/></marker></defs>
+            </svg>
+            <figcaption>四类 loss 走向的诊断分支（依据本章“先诊断再下手”的诊断清单整理）：欠拟合先查学习率，过拟合先加数据，“两者都低但业务差”属目标与指标不一致，“两者都不降”优先怀疑代码 bug。分支只给出第一优先动作，完整清单见正文。</figcaption>
+        </figure>
+
         <p><strong>第四，不要怀疑NN的能力。</strong>这是一条非常重要的心理建设原则。知乎上有位答主说得特别直白："不要怀疑NN的能力，不要怀疑NN的能力，不要怀疑NN的能力。就我们调参狗能遇到的问题，NN没法拟合的，这概率是有多小？"</p>
 
         <p>记住：如果模型连小数据（32-100条样本）都无法过拟合，99%是代码bug或数据问题，而不是神经网络的表达极限。检查dataloader、label是否对齐、loss实现是否正确、训练和推理的预处理是否一致。先假设你的代码有bug，逐步验证每个环节——这是调试深度学习模型的第一要义。用Karpathy的话说："先上小规模数据，模型往大了放，只要不爆显存，能用256个filter你就别用128个。直接奔着过拟合去。"如果小数据都过拟合不了，别谈调参。</p>
@@ -100,6 +168,34 @@
             4. DataLoader单独跑一遍，确认输入数据正确（label与input对齐）<br>
             5. 模型参数是否全部传入了optimizer？→ 先后创建model和optimizer时容易遗漏
         </div>
+
+        <h3>动手：按症状定位问题</h3>
+        <p>下面是本章四类诊断的可交互版本。点击一个症状，读出对应的第一优先动作。</p>
+        <div class="control-row" role="group" aria-label="诊断症状选择">
+            <button type="button" data-diag="under" aria-pressed="false">训练/验证 loss 都高</button>
+            <button type="button" data-diag="over" aria-pressed="false">训练低、验证高</button>
+            <button type="button" data-diag="mismatch" aria-pressed="false">两个都低但业务指标差</button>
+            <button type="button" data-diag="bug" aria-pressed="false">两个 loss 都不降</button>
+        </div>
+        <p class="status" id="diag-status" role="status" aria-live="polite">选择一种症状查看建议。</p>
+        <script>
+        (function () {
+            var advice = {
+                under: '欠拟合：先确认学习率是否落在合理范围（LR Range Test），再考虑增大模型宽度/深度；不要先加正则化。',
+                over: '过拟合：优先级为 加数据 > 加正则化（dropout / weight decay）> 降低模型容量。',
+                mismatch: '目标与指标不一致：回头审视损失函数与业务评价指标之间的偏差，必要时重设目标函数。',
+                bug: '大概率是代码 bug：先假设实现有错，检查 dataloader、label 对齐、loss 实现与训练/推理预处理一致性。'
+            };
+            var status = document.getElementById('diag-status');
+            var buttons = document.querySelectorAll('[data-diag]');
+            buttons.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b === btn)); });
+                    status.textContent = advice[btn.getAttribute('data-diag')];
+                });
+            });
+        })();
+        </script>
 
         <h3>实验管理的科学方法</h3>
 
@@ -216,12 +312,21 @@
 
         <p>从下一章开始，我们要进入具体的工具和实操。第2章我们将学习<strong>实验管理与超参数搜索</strong>——如果你连实验记录都做不好，调参就永远停留在"凭感觉"阶段。我们会讲到如何用WandB和代码版本控制来管理实验、如何用Grid Search和Random Search做系统化的超参数搜索、以及如何设置一套可复现的实验流水线。打好这个基础，你才能自信地说：我的每一次提升，都是科学验证的结果，而不是运气使然。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Andrej Karpathy,《A Recipe for Training Neural Networks》(2019), <a href="https://karpathy.github.io/2019/04/25/recipe/">karpathy.github.io</a>。</li>
+                <li>He et al.,《Bag of Tricks for Image Classification with Convolutional Neural Networks》, <a href="https://arxiv.org/abs/1812.01187">arXiv:1812.01187</a>。用于验证本章“固定随机种子、可追溯实验”的工程实践。</li>
+                <li>Goodfellow, Bengio, Courville,《Deep Learning》(2016), MIT Press（关于过拟合/欠拟合与容量控制的定义）。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="javascript:void(0)">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="02.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
 </body>
