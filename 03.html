@@ -5,11 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第3章 优化器选择：Adam vs SGD的底层逻辑</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.9rem,4.6vw,2.9rem); line-height:1.2; letter-spacing:-.03em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.08rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        .main-content h3 { color:#134e4a; margin:2rem 0 .7rem; }
+        p { line-height:1.85; }
+        table { display:block; width:100%; overflow-x:auto; border-collapse:collapse; font-size:.9rem; }
+        th, td { border-bottom:1px solid var(--border); text-align:left; padding:.6rem; }
+        pre { overflow:auto; max-width:100%; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .math-inline { font-family:"Cambria Math","STIX Two Math",serif; vertical-align:-.05em; }
+        .math-equation { margin:1.6rem 0; padding:.5rem 0; border-block:1px solid var(--border); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; }
+        .math-scroll:focus-visible, [data-math-scroll]:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+        .math-scroll math[display="block"] { width:max-content; min-width:100%; }
+        button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .status { min-height:1.5em; color:var(--accent); font-weight:600; }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { position:static; border-right:0; } }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,8 +74,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>优化器选择：Adam vs SGD 的底层逻辑</h1>
+            <p class="dek">Adam 的自适应机制、SGD+Momentum 为何偏向平坦极小值、两阶段训练法如何同时拿到快收敛与好泛化，以及一张可以直接照用的优化器决策表。</p>
+        </header>
         <h2>Adam vs SGD——深度学习最持久的争论</h2>
 
         <p>大家好，我是你们的讲师。上一章我们建立了梯度下降的直觉——理解了为什么负梯度方向是最陡下降方向、动量怎么让参数"滚起来"、以及Adam如何用二阶矩来近似曲率信息。今天我们要打一场擂台赛：<strong>Adam VS SGD+Momentum</strong>。</p>
@@ -62,6 +99,33 @@
         m̂ₜ = mₜ / (1 - β₁ᵗ)                      # 偏差修正
         v̂ₜ = vₜ / (1 - β₂ᵗ)                      # 偏差修正
         θₜ₊₁ = θₜ - lr · m̂ₜ / (√v̂ₜ + ε)        # 参数更新</code></pre>
+
+        <div class="math-equation" role="group" aria-label="Adam 的一阶矩与二阶矩">
+            <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="Adam 的一阶矩与二阶矩，可横向滚动">
+                <math display="block" aria-label="m_t 等于 β1 m_{t-1} 加 (1-β1) g_t；v_t 等于 β2 v_{t-1} 加 (1-β2) g_t 的平方">
+                    <mrow>
+                        <msub><mi>m</mi><mi>t</mi></msub><mo>=</mo><msub><mi>β</mi><mn>1</mn></msub><msub><mi>m</mi><mrow><mi>t</mi><mo>&#x2212;</mo><mn>1</mn></mrow></msub><mo>+</mo><mo>(</mo><mn>1</mn><mo>&#x2212;</mo><msub><mi>β</mi><mn>1</mn></msub><mo>)</mo><msub><mi>g</mi><mi>t</mi></msub>
+                        <mo>,</mo><mspace width="1em"/>
+                        <msub><mi>v</mi><mi>t</mi></msub><mo>=</mo><msub><mi>β</mi><mn>2</mn></msub><msub><mi>v</mi><mrow><mi>t</mi><mo>&#x2212;</mo><mn>1</mn></mrow></msub><mo>+</mo><mo>(</mo><mn>1</mn><mo>&#x2212;</mo><msub><mi>β</mi><mn>2</mn></msub><mo>)</mo><msubsup><mi>g</mi><mi>t</mi><mn>2</mn></msubsup>
+                    </mrow>
+                </math>
+            </div>
+        </div>
+        <div class="math-equation" role="group" aria-label="Adam 的偏差修正与参数更新">
+            <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="Adam 的偏差修正与参数更新，可横向滚动">
+                <math display="block" aria-label="θ_{t+1} 等于 θ_t 减去 η 乘以 m 帽除以根号 v 帽加 ε">
+                    <mrow>
+                        <msub><mi>θ</mi><mrow><mi>t</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>=</mo><msub><mi>θ</mi><mi>t</mi></msub><mo>&#x2212;</mo><mi>η</mi>
+                        <mfrac>
+                            <msub><mover><mi>m</mi><mo>^</mo></mover><mi>t</mi></msub>
+                            <mrow><msqrt><msub><mover><mi>v</mi><mo>^</mo></mover><mi>t</mi></msub></msqrt><mo>+</mo><mi>ε</mi></mrow>
+                        </mfrac>
+                        <mo>,</mo><mspace width="1em"/>
+                        <msub><mover><mi>m</mi><mo>^</mo></mover><mi>t</mi></msub><mo>=</mo><mfrac><msub><mi>m</mi><mi>t</mi></msub><mrow><mn>1</mn><mo>&#x2212;</mo><msubsup><mi>β</mi><mn>1</mn><mi>t</mi></msubsup></mrow></mfrac>
+                    </mrow>
+                </math>
+            </div>
+        </div>
 
         <p>其中两个关键超参数β₁和β₂：</p>
 
@@ -97,9 +161,92 @@
 
         <p>而Adam为什么倾向于尖锐极小值？因为Adam的自适应机制：在陡峭方向上，Adam的vₜ很大，有效学习率很小，参数在陡峭方向被"踩刹车"停住了。在平缓方向上，vₜ很小，有效学习率很大。效果就是——Adam在陡峭方向减速快，在平缓方向加速快。这导致Adam被"拉向"陡峭方向的极小值，而陡峭方向往往对应尖锐极小值。</p>
 
+        <figure id="minima-figure">
+            <svg role="img" aria-labelledby="mf-title mf-desc" viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg">
+                <title id="mf-title">尖锐极小值与平坦极小值对参数扰动的不同敏感度</title>
+                <desc id="mf-desc">左侧窄而深的尖坑与右側宽而浅的平坑，最小点 loss 相同。在同等 loss 增量下（虚线），平坦极小值允许更大的参数扰动范围，因此对分布偏移更不敏感。</desc>
+                <rect width="720" height="300" rx="16" fill="#f3f9f6"/>
+                <line x1="40" y1="250" x2="690" y2="250" stroke="#53676d" stroke-width="2"/>
+                <path d="M110 110 L160 150 L185 200 L200 210 L215 200 L240 150 L290 110" fill="none" stroke="#d06d4d" stroke-width="4"/>
+                <path d="M370 150 L430 180 L470 200 L520 210 L570 200 L610 180 L670 150" fill="none" stroke="#147f80" stroke-width="4"/>
+                <line x1="110" y1="160" x2="290" y2="160" stroke="#d06d4d" stroke-width="2" stroke-dasharray="6 5"/>
+                <line x1="370" y1="160" x2="670" y2="160" stroke="#147f80" stroke-width="2" stroke-dasharray="6 5"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="13" fill="#203035">
+                    <text x="200" y="278" text-anchor="middle" fill="#d06d4d">尖锐极小值（窄）</text>
+                    <text x="520" y="278" text-anchor="middle" fill="#147f80">平坦极小值（宽）</text>
+                    <text x="300" y="142" text-anchor="middle" fill="#53676d">同等 loss 增量 ↔ 参数扰动范围</text>
+                </g>
+            </svg>
+            <figcaption>尖锐极小值与平坦极小值的对比（教学示意）：两条曲线的极小点 loss 相同，但在同一 loss 增量（虚线）下，左侧尖坑允许的参数扰动范围远小于右侧平坑。SGD+Momentum 的噪声与惯性更容易停在宽坑里，而自适应方法可能在窄坑处停下，这也是两者泛化差异的几何直觉。</figcaption>
+        </figure>
+
         <div class="highlight">
             <strong>重要提示：</strong>这个结论有前提条件。当训练数据量极大（数亿样本以上）时，泛化差距会缩小。而且对于NLP/Transformer任务，AdamW的泛化能力与SGD差距并不大。所以不要把这个结论当成绝对的普适规律——它是一个有用的启发式，但不是铁律。
         </div>
+
+        <h3>动手：三种优化器在同一条山谷里的轨迹</h3>
+        <p>在 f(x,y)=0.5(x²+8y²) 的等高线上，从同一点 (−1, 0.55) 分别用 SGD、SGD+Momentum、Adam 迭代 60 步（教学示意，学习率与动量系数为演示取值，不代表真实训练超参）。</p>
+        <div class="control-row" role="group" aria-label="优化器选择">
+            <button type="button" data-opt="sgd" aria-pressed="false">SGD</button>
+            <button type="button" data-opt="momentum" aria-pressed="false">SGD+Momentum</button>
+            <button type="button" data-opt="adam" aria-pressed="true">Adam</button>
+        </div>
+        <svg id="opt-plot" viewBox="0 0 600 320" role="img" aria-labelledby="opt-title" xmlns="http://www.w3.org/2000/svg">
+            <title id="opt-title">三种优化器在二维二次函数上的迭代轨迹（教学示意）</title>
+            <g fill="none" stroke="#147f80" opacity="0.35">
+                <ellipse cx="300" cy="160" rx="40" ry="14"/><ellipse cx="300" cy="160" rx="80" ry="28"/>
+                <ellipse cx="300" cy="160" rx="120" ry="42"/><ellipse cx="300" cy="160" rx="160" ry="57"/>
+            </g>
+            <circle cx="300" cy="160" r="3" fill="#203035"/>
+            <polyline id="opt-line" fill="none" stroke="#147f80" stroke-width="3" points=""/>
+            <text x="308" y="176" font-size="12" fill="#53676d">(0,0)</text>
+        </svg>
+        <p class="status" id="opt-status" role="status" aria-live="polite"></p>
+        <script>
+        (function () {
+            var line = document.getElementById('opt-line');
+            var status = document.getElementById('opt-status');
+            var buttons = document.querySelectorAll('[data-opt]');
+            var note = {
+                sgd: 'SGD：窄方向（y）与宽方向（x）同一步长，轨迹在山谷里来回锯齿，窄方向收敛慢。',
+                momentum: 'SGD+Momentum：惯性让窄方向出现超调/回摆，但最终能滑到宽而浅的谷底附近。',
+                adam: 'Adam：每个坐标被归一化到接近同样的步长，两方向同步推进，收敛快，但更贴近谷底。'
+            };
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+            function simulate(kind) {
+                var x = -1, y = 0.55, mx = 0, my = 0, vx = 0, vy = 0, pts = [[x, y]], i, gx, gy;
+                for (i = 0; i < 60; i++) {
+                    gx = x; gy = 8 * y;
+                    if (kind === 'adam') {
+                        mx = 0.9 * mx + 0.1 * gx; my = 0.9 * my + 0.1 * gy;
+                        vx = 0.999 * vx + 0.001 * gx * gx; vy = 0.999 * vy + 0.001 * gy * gy;
+                        x -= 0.08 * (mx / (1 - Math.pow(0.9, i + 1))) / (Math.sqrt(vx / (1 - Math.pow(0.999, i + 1))) + 1e-8);
+                        y -= 0.08 * (my / (1 - Math.pow(0.9, i + 1))) / (Math.sqrt(vy / (1 - Math.pow(0.999, i + 1))) + 1e-8);
+                    } else if (kind === 'momentum') {
+                        vx = 0.9 * vx + 0.03 * gx; vy = 0.9 * vy + 0.03 * gy; x -= vx; y -= vy;
+                    } else { x -= 0.04 * gx; y -= 0.04 * gy; }
+                    pts.push([x, y]);
+                }
+                return pts;
+            }
+            function render(kind) {
+                var pts = simulate(kind);
+                line.setAttribute('points', pts.map(function (p) {
+                    return (300 + 200 * clamp(p[0], -1.35, 1.35)).toFixed(1) + ',' + (160 - 200 * clamp(p[1], -0.72, 0.72)).toFixed(1);
+                }).join(' '));
+                line.setAttribute('stroke', kind === 'sgd' ? '#7461ba' : (kind === 'momentum' ? '#d06d4d' : '#147f80'));
+                var last = pts[pts.length - 1];
+                status.textContent = note[kind] + ' 60 步后 (x, y) ≈ (' + last[0].toFixed(3) + ', ' + last[1].toFixed(3) + ')。';
+            }
+            buttons.forEach(function (b) {
+                b.addEventListener('click', function () {
+                    buttons.forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+                    render(b.getAttribute('data-opt'));
+                });
+            });
+            render('adam');
+        })();
+        </script>
 
         <h3>两阶段训练法为什么有效</h3>
 
@@ -214,12 +361,22 @@
 
         <p>下一章我们进入调参的第一优先级——<strong>学习率</strong>。不管用什么优化器，LR都是最重要的超参数，没有之一。我们会讲到warmup的数学原理、cosine退火为什么有效、以及LR Range Test的完整操作流程。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Kingma &amp; Ba,《Adam: A Method for Stochastic Optimization》, <a href="https://arxiv.org/abs/1412.6980">arXiv:1412.6980</a>（一/二阶矩与偏差修正）。</li>
+                <li>Loshchilov &amp; Hutter,《Decoupled Weight Decay Regularization》(AdamW), <a href="https://arxiv.org/abs/1711.05101">arXiv:1711.05101</a>（将权重衰减从自适应更新中解耦）。</li>
+                <li>Keskar et al.,《On Large-Batch Training for Deep Learning》, <a href="https://arxiv.org/abs/1609.04836">arXiv:1609.04836</a>（尖锐 vs 平坦极小值与泛化）。</li>
+                <li>Wilson et al.,《The Marginal Value of Adaptive Gradient Methods in Machine Learning》, <a href="https://arxiv.org/abs/1705.08292">arXiv:1705.08292</a>（自适应方法泛化劣势的实验证据）。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="02.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="04.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
 </body>
