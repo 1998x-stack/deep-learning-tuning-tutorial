@@ -5,11 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第26章 Scaling Law与μP参数化</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.9rem,4.6vw,2.9rem); line-height:1.2; letter-spacing:-.03em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.08rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        .main-content h3 { color:#134e4a; margin:2rem 0 .7rem; }
+        p { line-height:1.85; }
+        table { display:block; width:100%; overflow-x:auto; border-collapse:collapse; font-size:.9rem; }
+        th, td { border-bottom:1px solid var(--border); text-align:left; padding:.6rem; }
+        pre { overflow:auto; max-width:100%; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .math-inline { font-family:"Cambria Math","STIX Two Math",serif; vertical-align:-.05em; }
+        .math-equation { margin:1.6rem 0; padding:.5rem 0; border-block:1px solid var(--border); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; }
+        .math-scroll:focus-visible, [data-math-scroll]:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+        .math-scroll math[display="block"] { width:max-content; min-width:100%; }
+        .lora-readout { display:flex; flex-wrap:wrap; gap:1.2rem; margin:1rem 0; }
+        .lora-readout dd { margin:.1rem 0 0; font-weight:700; color:var(--accent); }
+        .lora-readout dt { font-size:.85rem; color:var(--subtle); }
+        button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .status { min-height:1.5em; color:var(--accent); font-weight:600; }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { position:static; border-right:0; } }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +77,13 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>超参数在"缩放"——当模型从百万参数到千亿参数</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>Scaling Law 与 μP 参数化</h1>
+            <p class="dek">当模型从百万参数长到千亿参数，哪些超参数可以固定、哪些必须随规模缩放？从 Scaling Law 的幂律到 μP 的零样本迁移，建立一套“缩放观”。</p>
+        </header>
+        <h2>超参数在“缩放”——当模型从百万参数到千亿参数</h2>
 
         <p>大家好，我是你们的讲师。如果你曾经拿着一个在ResNet-50上工作得很好的超参数配置，直接套到ViT-Large上发现效果一塌糊涂——或者更夸张一点，把BERT-base的配置迁移到GPT-3上结果loss直接飞到天上——那你一定理解今天这章要讲的核心问题：<strong>超参数如何随模型规模缩放</strong>。</p>
 
@@ -59,8 +99,17 @@
 
         <p>2024年，DeepSeek团队在训练DeepSeek-V2时进一步量化了这个关系，提出了非常实用的幂律公式：</p>
 
-        <pre><code>最优学习率 η_opt = 0.3118 × C^(-0.1250)
-最优批大小 B_opt = 0.2920 × C^(0.3271)</code></pre>
+        <div class="math-equation" role="group" aria-label="DeepSeek 的最优学习率与批大小幂律">
+            <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="DeepSeek 的最优学习率与批大小幂律，可横向滚动">
+                <math display="block" aria-label="最优学习率等于 0.3118 乘 C 的负 0.125 次方，最优批大小等于 0.2920 乘 C 的 0.3271 次方">
+                    <mrow>
+                        <msub><mi>η</mi><mi>opt</mi></msub><mo>=</mo><mn>0.3118</mn><mo>&#xD7;</mo><msup><mi>C</mi><mrow><mo>&#x2212;</mo><mn>0.1250</mn></mrow></msup>
+                        <mo>,</mo><mspace width="1em"/>
+                        <msub><mi>B</mi><mi>opt</mi></msub><mo>=</mo><mn>0.2920</mn><mo>&#xD7;</mo><msup><mi>C</mi><mrow><mn>0.3271</mn></mrow></msup>
+                    </mrow>
+                </math>
+            </div>
+        </div>
 
         <p>这里的C是总计算量（以FLOPs计）。这两个公式揭示了一个直观的趋势：<strong>计算量越大，最优学习率越小，最优batch size越大</strong>。为什么？当计算量增大时，模型通常也更大，参数空间的曲率变得更复杂，需要更小的步长才能稳定下降。同时，更大的模型意味着更冗余的梯度估计，可以用更大的batch size来摊平噪声。</p>
 
@@ -86,17 +135,55 @@
             <li><strong>Attention中的softmax前加1/sqrt(d)缩放：</strong>防止点积结果随维度增长而爆炸，保持softmax输出的"锐度"与宽度无关。</li>
         </ul>
 
+        <div class="math-equation" role="group" aria-label="μP 的初始化与学习率缩放">
+            <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="μP 的初始化与学习率缩放，可横向滚动">
+                <math display="block" aria-label="初始化标准差等于 1 除以根号 d；输出层学习率等于 base 学习率乘以 d_model 除以 d_out">
+                    <mrow>
+                        <msub><mi>σ</mi><mi>init</mi></msub><mo>=</mo><mfrac><mn>1</mn><mrow><msqrt><mi>d</mi></msqrt></mrow></mfrac>
+                        <mo>,</mo><mspace width="1em"/>
+                        <msub><mi>η</mi><mi>out</mi></msub><mo>=</mo><msub><mi>η</mi><mi>base</mi></msub><mo>&#x22C5;</mo><mfrac><msub><mi>d</mi><mi>model</mi></msub><msub><mi>d</mi><mi>out</mi></msub></mfrac>
+                    </mrow>
+                </math>
+            </div>
+        </div>
+
         <div class="highlight">
             <strong>理解μP为什么work：</strong>在标准参数化下，宽度变大→每层的输出幅度变大→梯度更新时参数的相对变化量变小→模型接近初始化→lazy regime。μP通过按宽度缩放初始化（保持激活值幅度恒定）和按宽度缩放LR（保持参数更新的相对大小恒定），保证了不同宽度下模型始终处于"有特征学习"的状态。简单说：μP让"宽度"这个维度从模型的行为中"消去"了。
         </div>
 
         <p>μP最令人兴奋的性质是<strong>零样本超参数迁移</strong>：你可以在一个小代理模型（比如宽度=256）上把LR、初始化标准差、Adam betas等超参数调好，然后把这些超参数直接用到宽度=4096甚至更大的模型上——效果几乎不变。这在实践中节省了天文数字的调参成本。例如，如果你要在宽度=8192的模型上训练，而调一次全尺寸实验需要花费100万美元——你可以在宽度=256的代理模型上只花几千美元调好参数，然后零成本迁移。</p>
 
+        <figure id="width-figure">
+            <svg role="img" aria-labelledby="wf-title wf-desc" viewBox="0 0 700 300" xmlns="http://www.w3.org/2000/svg">
+                <title id="wf-title">标准参数化与 μP 下更新幅度随宽度的变化</title>
+                <desc id="wf-desc">横轴为宽度（对数），纵轴为归一化更新幅度。标准参数化下更新幅度随宽度增大而衰减，趋向 lazy regime；μP 下更新幅度保持水平，因此超参数可零样本迁移。</desc>
+                <rect width="700" height="300" rx="16" fill="#f3f9f6"/>
+                <line x1="60" y1="250" x2="660" y2="250" stroke="#53676d" stroke-width="2"/>
+                <line x1="60" y1="40" x2="60" y2="250" stroke="#53676d" stroke-width="2"/>
+                <path d="M60 80 L172 155 L284 192 L396 210 L508 219 L620 225" fill="none" stroke="#d06d4d" stroke-width="4"/>
+                <path d="M60 80 L620 80" fill="none" stroke="#147f80" stroke-width="4"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12.5" fill="#203035">
+                    <text x="225" y="200" fill="#d06d4d">标准参数化：更新幅度随宽度衰减 → lazy regime</text>
+                    <text x="235" y="72" fill="#147f80">μP：更新幅度与宽度无关</text>
+                    <text x="56" y="270">256</text><text x="166" y="270">512</text><text x="278" y="270">1k</text><text x="390" y="270">2k</text><text x="502" y="270">4k</text><text x="608" y="270">8k</text>
+                    <text x="300" y="292" text-anchor="middle" fill="#53676d">宽度 d（对数刻度）→</text>
+                    <text x="14" y="34" fill="#53676d">归一化更新幅度</text>
+                </g>
+            </svg>
+            <figcaption>两种参数化下“更新幅度 vs 宽度”的示意（教学示意）：标准参数化（SP）下每层更新的相对幅度随宽度增大而衰减，模型趋于 lazy regime；μP 通过按宽度缩放初始化与学习率，使更新幅度在宽度变化时保持水平，这是零样本超参迁移的直观原因。</figcaption>
+        </figure>
+
         <h3>深度缩放中的-3/2幂律（2026最新）</h3>
 
         <p>如果说宽度缩放的μP问题已经基本解决，那<strong>深度缩放</strong>（depth scaling）是2025-2026年才取得突破的新前沿。2026年初，来自多个实验室的独立研究共同发现了一个惊人的规律：<strong>最优学习率随有效深度L的缩放遵循-3/2幂律</strong>。</p>
 
-        <pre><code>η* ∝ L^(-3/2)</code></pre>
+        <div class="math-equation" role="group" aria-label="深度缩放的最优学习率幂律">
+            <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="深度缩放的最优学习率幂律，可横向滚动">
+                <math display="block" aria-label="最优学习率正比于 L 的负二分之三次方">
+                    <mrow><msub><mi>η</mi><mi>opt</mi></msub><mo>&#x221D;</mo><msup><mi>L</mi><mrow><mo>&#x2212;</mo><mfrac><mn>3</mn><mn>2</mn></mfrac></mrow></msup></mrow>
+                </math>
+            </div>
+        </div>
 
         <p>这个规律在CNN、ResNet、ViT等多种架构上都得到了验证。它意味着：当你的网络深度加倍时，最优学习率大约要降到原来的2^(-3/2) ≈ 35%。也就是说，从12层ResNet到18层，LR要从1e-3降到约3.5e-4——这是一个非常大的调整幅度，远远超过Scaling Law中计算量缩放带来的LR变化。</p>
 
@@ -105,6 +192,48 @@
         <div class="warning">
             <strong>重要的实战区别：</strong>深度缩放和宽度缩放的规律完全不同。宽度缩放用μP可以做到零样本迁移，但深度缩放目前还没有这么优雅的解决方案。-3/2幂律是一个经验规律，可以作为调参的起点，但不像μP那样有严格的数学保证。当你同时增加宽度和深度时，建议先处理宽度迁移（用μP），再根据深度缩放规律微调LR。
         </div>
+
+        <h3>动手：计算量放大时最优 LR 与 batch 怎么变</h3>
+        <p>以 C = 1 为基准，用本章引用的 DeepSeek 幂律 η ∝ C^(−0.125)、B ∝ C^(0.3271) 计算相对倍数；基准取 η₀ = 3e-4、B₀ = 256（教学示意，仅展示方向与量级）。</p>
+        <div class="control-row" role="group" aria-label="计算量倍数选择">
+            <button type="button" data-c="1" aria-pressed="true">C ×1</button>
+            <button type="button" data-c="10" aria-pressed="false">C ×10</button>
+            <button type="button" data-c="100" aria-pressed="false">C ×100</button>
+            <button type="button" data-c="1000" aria-pressed="false">C ×1000</button>
+        </div>
+        <dl class="lora-readout">
+            <div><dt>相对最优 η</dt><dd id="scale-eta">1.00×</dd></div>
+            <div><dt>绝对 η（基准 3e-4）</dt><dd id="scale-eta-abs">3.0e-4</dd></div>
+            <div><dt>相对最优 B</dt><dd id="scale-b">1.00×</dd></div>
+            <div><dt>绝对 B（基准 256）</dt><dd id="scale-b-abs">256</dd></div>
+        </dl>
+        <p class="status" id="scale-status" role="status" aria-live="polite"></p>
+        <script>
+        (function () {
+            var etaEl = document.getElementById('scale-eta');
+            var etaAbsEl = document.getElementById('scale-eta-abs');
+            var bEl = document.getElementById('scale-b');
+            var bAbsEl = document.getElementById('scale-b-abs');
+            var status = document.getElementById('scale-status');
+            var buttons = document.querySelectorAll('[data-c]');
+            function render(c) {
+                var etaRatio = Math.pow(c, -0.1250);
+                var bRatio = Math.pow(c, 0.3271);
+                etaEl.textContent = etaRatio.toFixed(2) + '×';
+                etaAbsEl.textContent = (3e-4 * etaRatio).toExponential(2);
+                bEl.textContent = bRatio.toFixed(2) + '×';
+                bAbsEl.textContent = Math.round(256 * bRatio);
+                status.textContent = '计算量 ×' + c + '：最优学习率约为基准的 ' + etaRatio.toFixed(2) + ' 倍，最优 batch 约为基准的 ' + bRatio.toFixed(2) + ' 倍。计算量越大，LR 越小、batch 越大。';
+            }
+            buttons.forEach(function (b) {
+                b.addEventListener('click', function () {
+                    buttons.forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+                    render(parseFloat(b.getAttribute('data-c')));
+                });
+            });
+            render(1);
+        })();
+        </script>
 
         <h3>DeepSeek的固定超参策略</h3>
 
@@ -222,12 +351,22 @@ optimizer_wide = torch.optim.AdamW(groups_wide)
 
         <p>下一章，我们将从"缩放"走向"自动化"——看看2025-2026年调参领域的前沿趋势，包括贪心对齐优化器选择、Sharpness-Aware Minimization（SAM）、以及大模型本身如何成为调参助手。理论在进步，工具也在进化，让我们看看接下来会发生什么。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Kaplan et al.,《Scaling Laws for Neural Language Models》, <a href="https://arxiv.org/abs/2001.08361">arXiv:2001.08361</a>（参数量/数据量/计算量与 loss 的幂律）。</li>
+                <li>Jacot, Gabriel, Hongler,《Neural Tangent Kernel》, <a href="https://arxiv.org/abs/1806.07572">arXiv:1806.07572</a>（无限宽极限与 lazy regime 的分析）。</li>
+                <li>Yang et al.,《Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer》, <a href="https://arxiv.org/abs/2203.03466">arXiv:2203.03466</a>（μP 与零样本超参迁移）。</li>
+                <li>DeepSeek-AI,《DeepSeek-V2 Technical Report》, <a href="https://arxiv.org/abs/2405.04434">arXiv:2405.04434</a>（大模型训练的固定超参与调度策略）。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="25.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="27.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
 </body>
