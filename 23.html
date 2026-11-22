@@ -5,11 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第23章 LoRA微调的数学本质</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.9rem,4.6vw,2.9rem); line-height:1.2; letter-spacing:-.03em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.08rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        .main-content h3 { color:#134e4a; margin:2rem 0 .7rem; }
+        p { line-height:1.85; }
+        table { display:block; width:100%; overflow-x:auto; border-collapse:collapse; font-size:.9rem; }
+        th, td { border-bottom:1px solid var(--border); text-align:left; padding:.6rem; }
+        pre { overflow:auto; max-width:100%; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .math-inline { font-family:"Cambria Math","STIX Two Math",serif; vertical-align:-.05em; }
+        .math-equation { margin:1.6rem 0; padding:.5rem 0; border-block:1px solid var(--border); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; }
+        .math-scroll:focus-visible, [data-math-scroll]:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+        .math-scroll math[display="block"] { width:max-content; min-width:100%; }
+        .lora-readout { display:flex; flex-wrap:wrap; gap:1.2rem; margin:1rem 0; }
+        .lora-readout dd { margin:.1rem 0 0; font-weight:700; color:var(--accent); }
+        .lora-readout dt { font-size:.85rem; color:var(--subtle); }
+        button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .status { min-height:1.5em; color:var(--accent); font-weight:600; }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { position:static; border-right:0; } }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +77,13 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>LoRA——大模型时代的"轻量级魔法"</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>LoRA 微调的数学本质</h1>
+            <p class="dek">为什么 0.1% 的可训练参数能逼近全量微调、Rank 与 Alpha 分别控制什么、QLoRA 多付出了哪些代价——把大模型微调还原成一个可推导的低秩问题。</p>
+        </header>
+        <h2>LoRA——大模型时代的“轻量级魔法”</h2>
 
         <p>大家好，我是你们的讲师。今天我们进入一个非常火热的话题——<strong>LoRA微调</strong>。</p>
 
@@ -55,11 +95,67 @@
 
         <p>LoRA的核心思想可以用一个简洁的数学表述来概括。对于一个预训练权重矩阵 <code>W ∈ R^(d×k)</code>，全量微调需要学习一个增量 <code>ΔW</code>，其参数量与W相同。LoRA假设这个增量具有低秩结构，将其分解为两个小矩阵的乘积：</p>
 
-        <pre><code>ΔW = B × A, 其中 B ∈ R^(d×r), A ∈ R^(r×k), r &lt;&lt; min(d, k)</code></pre>
+        <div class="math-equation" role="group" aria-label="LoRA 的低秩增量与前向传播">
+            <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="LoRA 的低秩增量与前向传播，可横向滚动">
+                <math display="block" aria-label="ΔW 等于 B 乘 A，其中 B 属于 R 的 d 乘 r，A 属于 R 的 r 乘 k，r 远小于 min(d,k)">
+                    <mrow>
+                        <mi>ΔW</mi><mo>=</mo><mi>B</mi><mo>&#x22C5;</mo><mi>A</mi><mo>,</mo><mspace width="1em"/>
+                        <mi>B</mi><mo>&#x2208;</mo><msup><mi>R</mi><mrow><mi>d</mi><mo>&#xD7;</mo><mi>r</mi></mrow></msup><mo>,</mo>
+                        <mi>A</mi><mo>&#x2208;</mo><msup><mi>R</mi><mrow><mi>r</mi><mo>&#xD7;</mo><mi>k</mi></mrow></msup><mo>,</mo>
+                        <mi>r</mi><mo>&#x226A;</mo><mi>min</mi><mo>(</mo><mi>d</mi><mo>,</mo><mi>k</mi><mo>)</mo>
+                    </mrow>
+                </math>
+            </div>
+        </div>
+        <div class="math-equation" role="group" aria-label="LoRA 前向传播">
+            <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="LoRA 前向传播，可横向滚动">
+                <math display="block" aria-label="h 等于 Wx 加上 alpha 除以 r 乘 B 乘 A 乘 x">
+                    <mrow><mi>h</mi><mo>=</mo><mi>W</mi><mi>x</mi><mo>+</mo><mfrac><mi>α</mi><mi>r</mi></mfrac><mi>B</mi><mi>A</mi><mi>x</mi></mrow>
+                </math>
+            </div>
+        </div>
 
         <p>前向传播变为：<code>h = Wx + BAx</code>。训练时只更新A和B，W被完全冻结。训练完成后，可以将BA合并回W（即 <code>W' = W + BA</code>），推理时零额外延迟。</p>
 
         <p>问题来了：为什么一个低秩矩阵就能近似全量微调的效果？直觉上是这样的——预训练权重W已经在一个海量通用语料上训练到了非常好的状态，它包含的知识和表达能力已经极其丰富。新任务需要做的，只是在W的基础上做一个微调。这个调增量<code>ΔW</code>的"有效自由度"天然是低的——因为W本身已经很强，你只需要在几个关键方向上"拨动"一下。LoRA的低秩约束恰好捕获了这个特性。</p>
+
+        <div class="math-equation" role="group" aria-label="LoRA 可训练参数占比">
+            <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="LoRA 可训练参数占比，可横向滚动">
+                <math display="block" aria-label="可训练参数量约为原始权重的 r 除以 d+k">
+                    <mrow><mfrac><mi>r</mi><mrow><mi>d</mi><mo>+</mo><mi>k</mi></mrow></mfrac><mo>&#x2248;</mo><mfrac><mi>r</mi><mrow><mi>min</mi><mo>(</mo><mi>d</mi><mo>,</mo><mi>k</mi><mo>)</mo></mrow></mfrac></mrow>
+                </math>
+            </div>
+        </div>
+
+        <figure id="lora-figure">
+            <svg role="img" aria-labelledby="lf-title lf-desc" viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg">
+                <title id="lf-title">LoRA 的前向计算：冻结主分支与低秩旁路</title>
+                <desc id="lf-desc">输入 x 同时送入冻结的权重 W（d×k）与可训练的低秩旁路（A 为 r×k，B 为 d×r，并乘缩放 α/r），两路输出相加得到 h。</desc>
+                <rect width="760" height="300" rx="16" fill="#f3f9f6"/>
+                <rect x="20" y="125" width="104" height="50" rx="10" fill="#d6f1eb" stroke="#147f80"/>
+                <rect x="214" y="42" width="168" height="62" rx="10" fill="#ebe5ff" stroke="#7461ba"/>
+                <rect x="214" y="196" width="168" height="62" rx="10" fill="#ffecd9" stroke="#d06d4d"/>
+                <rect x="440" y="196" width="150" height="62" rx="10" fill="#ffecd9" stroke="#d06d4d"/>
+                <circle cx="650" cy="125" r="22" fill="#fff3cd" stroke="#916c22"/>
+                <rect x="690" y="100" width="58" height="50" rx="10" fill="#d6f1eb" stroke="#147f80"/>
+                <g stroke="#53676d" stroke-width="2" fill="none" marker-end="url(#lf-arrow)">
+                    <path d="M124 150 L206 78"/><path d="M124 150 L206 224"/>
+                    <path d="M382 73 L626 120"/>
+                    <path d="M590 224 L636 147"/>
+                    <path d="M672 125 L686 125"/>
+                </g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="13" fill="#203035" text-anchor="middle">
+                    <text x="72" y="155">x（k）</text>
+                    <text x="298" y="68">W（d×k）冻结</text><text x="298" y="88" font-size="12" fill="#53676d">主分支，不更新</text>
+                    <text x="298" y="222">A（r×k）可训练</text>
+                    <text x="515" y="222">B（d×r）可训练</text><text x="515" y="242" font-size="12" fill="#53676d">输出乘 α/r</text>
+                    <text x="650" y="130">＋</text>
+                    <text x="719" y="130">h</text>
+                </g>
+                <defs><marker id="lf-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#53676d"/></marker></defs>
+            </svg>
+            <figcaption>LoRA 前向计算的拓扑：输入 x 同时进入冻结的 W 与低秩旁路 A→B；旁路输出乘缩放系数 α/r 后与主分支相加得到 h。与正文公式 h = Wx + (α/r)BAx 一致；旁路参数量为 r(d+k)，r 远小于 d、k。</figcaption>
+        </figure>
 
         <div class="tip">
             <strong>核心洞察：</strong>秩r远小于d和k，这意味着ΔW的可训练参数量大约是原始权重的 r/min(d,k)。以LLaMA-7B为例，LoRA (r=8) 的可训练参数仅占总参数的约0.1%——从100%降到0.1%，但效果接近全量微调的95-99%。这不是魔法，这是利用了"预训练权重已经是强特征提取器"这一事实。
@@ -106,6 +202,47 @@
         <div class="tip">
             <strong>实践建议：</strong>当你遇到LoRA训练不稳定（loss震荡、忽高忽低）时，第一反应不是调LR，而是检查α是不是太小。把α翻倍，往往比把LR减半更有效。这是在平方根律被揭示之前很多资深调参工程师就已经在凭直觉做的事情，现在我们有数学解释了。
         </div>
+
+        <h3>动手：Rank 与 Alpha 各自控制什么</h3>
+        <p>固定单层投影（d = k = 4096）作演示，对比不同 (r, α) 组合下的缩放系数 α/r 与旁路可训练参数量（教学示意，仅看相对趋势）。</p>
+        <div class="control-row" role="group" aria-label="LoRA 参数组合">
+            <button type="button" data-lora="8,16" aria-pressed="true">r=8, α=16</button>
+            <button type="button" data-lora="16,16" aria-pressed="false">r=16, α=16</button>
+            <button type="button" data-lora="16,32" aria-pressed="false">r=16, α=32</button>
+            <button type="button" data-lora="64,16" aria-pressed="false">r=64, α=16</button>
+        </div>
+        <dl class="lora-readout">
+            <div><dt>缩放 α/r</dt><dd id="lora-scale">2.00</dd></div>
+            <div><dt>旁路参数量 r(d+k)</dt><dd id="lora-params">—</dd></div>
+            <div><dt>单层占比</dt><dd id="lora-frac">—</dd></div>
+        </dl>
+        <p class="status" id="lora-status" role="status" aria-live="polite"></p>
+        <script>
+        (function () {
+            var d = 4096, k = 4096;
+            var scaleEl = document.getElementById('lora-scale');
+            var paramsEl = document.getElementById('lora-params');
+            var fracEl = document.getElementById('lora-frac');
+            var status = document.getElementById('lora-status');
+            var buttons = document.querySelectorAll('[data-lora]');
+            function render(r, a) {
+                var params = r * (d + k);
+                var frac = params / (d * k) * 100;
+                scaleEl.textContent = (a / r).toFixed(2);
+                paramsEl.textContent = params.toLocaleString('en-US');
+                fracEl.textContent = frac.toFixed(2) + '%';
+                status.textContent = 'r=' + r + ' 决定旁路容量（参数量 ' + params.toLocaleString('en-US') + '），α=' + a + ' 只改缩放 α/r = ' + (a / r).toFixed(2) + '，不改变参数量。';
+            }
+            buttons.forEach(function (b) {
+                b.addEventListener('click', function () {
+                    buttons.forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
+                    var p = b.getAttribute('data-lora').split(',');
+                    render(parseInt(p[0], 10), parseInt(p[1], 10));
+                });
+            });
+            render(8, 16);
+        })();
+        </script>
 
         <h3>LoRA vs QLoRA vs 全量微调</h3>
 
@@ -278,12 +415,20 @@ model = model.merge_and_unload()</code></pre>
 
         <p>掌握了LoRA的数学本质和调参方法，你就掌握了大模型微调的核心工具。但LoRA只是"让模型学会新任务"的手段——真正决定模型能力的，是你喂给它的数据。下一章，我们将进入<strong>SFT数据工程的科学方法</strong>——数据质量比模型大小更重要，而数据构造中那些最隐蔽的坑，往往决定了SFT的成败。我们第24章见。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Hu, Shen, Wallis, Allen-Zhu, Li, Wang, Chen,《LoRA: Low-Rank Adaptation of Large Language Models》, <a href="https://arxiv.org/abs/2106.09685">arXiv:2106.09685</a>（低秩增量 ΔW=BA 与 α/r 缩放）。</li>
+                <li>Dettmers, Pagnoni, Holtzman, Zettlemoyer,《QLoRA: Efficient Finetuning of Quantized LLMs》, <a href="https://arxiv.org/abs/2305.14314">arXiv:2305.14314</a>（NF4 量化与 Q+V 目标模块结论）。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="22.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="24.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
 </body>
