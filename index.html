@@ -266,6 +266,14 @@
         .card:nth-child(6n+5) .chapter-num { background: #f7c6c6; color: #5a2e2e; }
         .card:nth-child(6n) .chapter-num { background: #c4b3e0; color: #2f2a4a; }
 
+        h2 {
+            color: #1f4d33;
+            font-size: 1.5rem;
+            margin: 1.8rem 0 0.5rem;
+            border-left: 6px solid #147f80;
+            padding-left: 0.8rem;
+        }
+
         .state-msg {
             text-align: center;
             padding: 3rem;
@@ -278,21 +286,104 @@
             border-radius: 20px;
             margin: 1rem 0;
         }
+
+        /* Article-style semantic additions */
+        .stage-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            margin: 0 0 1.4rem;
+        }
+        .stage-nav a {
+            font-size: 0.85rem;
+            color: #147f80;
+            text-decoration: none;
+            border: 1px solid #dce8e4;
+            background: #fff;
+            padding: 0.35rem 0.9rem;
+            border-radius: 30px;
+        }
+        .stage-nav a:focus-visible, .card-footer a:focus-visible {
+            outline: 3px solid #147f80;
+            outline-offset: 3px;
+        }
+        figure.path-figure {
+            margin: 1.6rem 0;
+            padding: 1rem;
+            background: #fff;
+            border: 1px solid #dce8e4;
+            border-radius: 20px;
+        }
+        figure.path-figure svg { width: 100%; height: auto; display: block; }
+        figure.path-figure figcaption {
+            font-size: 0.83rem;
+            line-height: 1.7;
+            color: #53676d;
+            border-top: 1px solid #dce8e4;
+            margin-top: 0.8rem;
+            padding-top: 0.7rem;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            * { animation: none !important; transition: none !important; }
+        }
     </style>
 </head>
 <body>
-<div class="container">
+<main class="container" id="content">
     <div class="header">
         <h1><span class="emoji"></span><span class="title-text"></span></h1>
         <div class="sub"></div>
     </div>
 
+    <nav class="stage-nav" aria-label="页面导航">
+        <a href="#path-figure">六阶段学习路径</a>
+        <a href="#cardContainer">全部 28 章</a>
+        <a href="#content">回到顶部</a>
+    </nav>
+
+    <section id="path-section" aria-labelledby="path-heading">
+    <h2 id="path-heading">课程地图：六个阶段</h2>
+    <figure class="path-figure" id="path-figure">
+        <svg role="img" aria-labelledby="lp-title lp-desc" viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg">
+            <title id="lp-title">28 章课程的六个阶段学习路径</title>
+            <desc id="lp-desc">六个阶段依次是优化器与核心超参、网络与正则、调试与评估、模态经验法则、对齐与前沿、从零调优实战，箭头表示递进与回折关系。</desc>
+            <rect width="760" height="300" rx="16" fill="#f3f9f6"/>
+            <g font-family="system-ui,'PingFang SC',sans-serif" text-anchor="middle">
+                <rect x="24" y="40" width="216" height="76" rx="12" fill="#d6f1eb" stroke="#147f80"/>
+                <rect x="272" y="40" width="216" height="76" rx="12" fill="#ffecd9" stroke="#d06d4d"/>
+                <rect x="520" y="40" width="216" height="76" rx="12" fill="#ebe5ff" stroke="#7461ba"/>
+                <rect x="24" y="184" width="216" height="76" rx="12" fill="#ebe5ff" stroke="#7461ba"/>
+                <rect x="272" y="184" width="216" height="76" rx="12" fill="#fff3cd" stroke="#916c22"/>
+                <rect x="520" y="184" width="216" height="76" rx="12" fill="#d6f1eb" stroke="#147f80"/>
+                <g fill="#203035" font-size="17">
+                    <text x="132" y="72">Part 1 · 01–06</text><text x="380" y="72">Part 2 · 07–13</text><text x="628" y="72">Part 3 · 14–18</text>
+                    <text x="132" y="216">Part 4 · 19–22</text><text x="380" y="216">Part 5 · 23–27</text><text x="628" y="216">Part 6 · 28</text>
+                </g>
+                <g fill="#53676d" font-size="13">
+                    <text x="132" y="96">优化器与核心超参</text><text x="380" y="96">网络与正则</text><text x="628" y="96">调试与评估</text>
+                    <text x="132" y="240">模态经验法则</text><text x="380" y="240">对齐与前沿</text><text x="628" y="240">从零调优实战</text>
+                </g>
+            </g>
+            <g stroke="#147f80" stroke-width="3" fill="none" marker-end="url(#lp-arrow)">
+                <path d="M240 78 H262"/><path d="M488 78 H510"/>
+                <path d="M628 116 V176"/>
+                <path d="M520 222 H498"/><path d="M272 222 H250"/>
+            </g>
+            <defs><marker id="lp-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#147f80"/></marker></defs>
+        </svg>
+        <figcaption>课程六阶段的学习路径：先掌握优化器与核心超参（01–06），再进入网络与正则（07–13），随后是调试与评估（14–18）；下半程按模态经验法则（19–22）展开，收束于对齐与前沿（23–27）与从零调优的综合实战（28）。</figcaption>
+    </figure>
+    </section>
+
+    <section id="chapters" aria-labelledby="chapters-heading">
+    <h2 id="chapters-heading">全部 28 章</h2>
     <div id="cardContainer" class="course-grid"></div>
+    </section>
 
     <div style="text-align:center;">
         <div class="footer"></div>
     </div>
-</div>
+</main>
 
 <script>
     (function() {
