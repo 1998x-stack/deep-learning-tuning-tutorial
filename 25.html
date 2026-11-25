@@ -5,11 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第25章 RLHF对齐训练的底层逻辑</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        @media (max-width:900px) { .container { display:block; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +66,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>RLHF——把模型能力推到上限的最后一步</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>RLHF 对齐训练的底层逻辑</h1>
+            <p class="dek">SFT 给能力，RL 把能力推到上限。本章按“四模型 PPO → 两模型 DPO → 去掉 Critic 的 GRPO”的顺序，解析对齐算法的工程复杂度与适用场景。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。我们在第23章学会了LoRA微调的数学本质，第24章掌握了SFT数据工程的科学方法。现在，我们已经能让大模型"学会做新任务"了。但还有一个问题：<strong>学会做 ≠ 做得好</strong>。</p>
 
@@ -53,7 +81,7 @@
 
         <p>今天这章，我们将深入RLHF的底层逻辑——PPO在LLM中的特殊挑战、Reward Hacking的博弈论解释、DPO如何将对齐转化为分类问题、以及GRPO等前沿方法。准备好了吗？我们开始。</p>
 
-        <h3>为什么SFT不够</h3>
+        <h2>为什么 SFT 不够</h2>
 
         <p>在深入RL技术之前，我们必须把SFT和RL的关系彻底说清楚。这不是一个"二选一"的关系，而是一个<strong>递进关系</strong>。</p>
 
@@ -71,7 +99,7 @@
             - 任务有确定性规则reward（数学、逻辑）？→ 可直接纯RL
         </div>
 
-        <h3>PPO在LLM中的特殊挑战</h3>
+        <h2>PPO 在 LLM 中的特殊挑战</h2>
 
         <p>PPO（Proximal Policy Optimization）是RLHF中最主流的算法，被InstructGPT、ChatGPT、Llama-Chat等代表性工作采用。但LLM场景下的PPO和标准强化学习中的PPO有本质上的不同。</p>
 
@@ -89,7 +117,7 @@
             <strong>KL散度的双重角色：</strong>KL惩罚与PPO Clip不是冗余的——Clip控制单步比率上限（局部约束），KL控制全局分布偏移（全局约束）。两者协同构成RLHF训练稳定性的基石。另外：如果在RL的prompt池中混入5-10%的通用SFT数据，可以有效"锚定"模型的基础能力，防止灾难性遗忘。
         </div>
 
-        <h3>Reward Hacking的博弈论解释</h3>
+        <h2>Reward Hacking 的博弈论解释</h2>
 
         <p>RLHF中最令人头疼的问题就是<strong>Reward Hacking</strong>（奖励破解）——模型发现了某种"捷径"来获得高奖励，但实际生成质量并未改善，甚至可能下降。</p>
 
@@ -115,7 +143,7 @@
             5. 不要只看reward曲线，一定要配合人工评估。Tang AI说："好记性不如烂笔头，看指标终究抵不过bad case的研究。"
         </div>
 
-        <h3>DPO如何将对齐问题转化为偏好分类</h3>
+        <h2>DPO 如何将对齐问题转化为偏好分类</h2>
 
         <p>PPO虽然效果好，但工程复杂度极高——四模型同时推理、on-policy采样、超参数极度敏感。DPO（Direct Preference Optimization）提供了一种截然不同的思路，将对齐问题转化为偏好分类问题。</p>
 
@@ -138,7 +166,7 @@
             <strong>DPO vs PPO的选择：</strong>DPO在RM质量受限、计算资源有限、离线偏好数据充分时优于PPO。PPO在需要RL探索（数学推理、编程竞赛）、RM质量高需要细粒度连续打分、需要多轮迭代RL时仍不可替代。两者不是替代关系，是不同场景下的最优选择。
         </div>
 
-        <h3>GRPO与前沿对齐方法</h3>
+        <h2>GRPO 与前沿对齐方法</h2>
 
         <p>2024年，DeepSeek提出了<strong>GRPO（Group Relative Policy Optimization）</strong>，进一步简化了RL对齐流程。</p>
 
@@ -147,6 +175,33 @@
         <p>GRPO的batch size越大效果越稳定。Tang AI的经验是："GRPO训练，batch size越大，其实效果越稳定，尤其是模型能力没有那么好的情况下。"这是因为on-policy采样量 = batch_size × G，更大的batch提供更稳定的梯度估计。小batch + 小G的组合极易导致训练发散。</p>
 
         <p><strong>拒绝采样 + 冷启动微调</strong>是提升Base-RL效果的有效增强策略：先用RL模型对prompt集做拒绝采样（每个prompt生成N个响应，N可达64-128），筛选出reward最高的一批响应作为"伪SFT数据"，用这些数据对原始基模做冷启动微调，再继续RL训练。这个循环可以突破reward瓶颈——当reward长时间不涨时，拒绝采样+冷启动往往能打开新局面。</p>
+
+        <figure id="rlhf-figure">
+            <svg role="img" aria-labelledby="rl-title rl-desc" viewBox="0 0 760 260" xmlns="http://www.w3.org/2000/svg">
+                <title id="rl-title">PPO、DPO、GRPO 三种对齐方法所需模型数量对比</title>
+                <desc id="rl-desc">PPO-RLHF 需要 Actor、Reference、Critic、Reward 四个模型同时驻留显存；DPO 只需 Policy 与 Reference 两个模型，把对齐转成偏好对分类；GRPO 去掉了 Critic，用组内 G 个响应的均值作 Advantage baseline。</desc>
+                <rect width="760" height="260" rx="16" fill="#f3f9f6"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="14" font-weight="600" fill="#164e54" text-anchor="middle"><text x="140" y="40">PPO-RLHF（4 模型）</text><text x="380" y="40">DPO（2 模型）</text><text x="620" y="40">GRPO（去掉 Critic）</text></g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12.5" fill="#203035" text-anchor="middle">
+                    <rect x="40" y="56" width="200" height="30" rx="7" fill="#d6f1eb" stroke="#147f80"/><text x="140" y="76">Actor（策略，训练）</text>
+                    <rect x="40" y="92" width="200" height="30" rx="7" fill="#f1f1f1" stroke="#9db4ae"/><text x="140" y="112">Reference（冻结）</text>
+                    <rect x="40" y="128" width="200" height="30" rx="7" fill="#d6f1eb" stroke="#147f80"/><text x="140" y="148">Critic（价值，训练）</text>
+                    <rect x="40" y="164" width="200" height="30" rx="7" fill="#f1f1f1" stroke="#9db4ae"/><text x="140" y="184">Reward Model（冻结）</text>
+                    <rect x="280" y="56" width="200" height="30" rx="7" fill="#d6f1eb" stroke="#147f80"/><text x="380" y="76">Policy π_θ（训练）</text>
+                    <rect x="280" y="92" width="200" height="30" rx="7" fill="#f1f1f1" stroke="#9db4ae"/><text x="380" y="112">Reference π_ref（冻结）</text>
+                    <rect x="520" y="56" width="200" height="30" rx="7" fill="#d6f1eb" stroke="#147f80"/><text x="620" y="76">Actor（策略，训练）</text>
+                    <rect x="520" y="92" width="200" height="30" rx="7" fill="#f1f1f1" stroke="#9db4ae"/><text x="620" y="112">Reward（冻结）</text>
+                    <rect x="520" y="128" width="200" height="30" rx="7" fill="#ebe5ff" stroke="#7461ba"/><text x="620" y="148">组内 G 个响应 → 均值 baseline</text>
+                </g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12" fill="#53676d" text-anchor="middle">
+                    <text x="140" y="222">4 个模型同驻显存，</text><text x="140" y="240">Clip + KL 双重约束</text>
+                    <text x="380" y="222">偏好对 (y_w, y_l) 直接分类，</text><text x="380" y="240">无需 RM / Critic</text>
+                    <text x="620" y="222">省掉 Critic 的显存开销；</text><text x="620" y="240">batch 越大越稳定</text>
+                </g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="11" fill="#53676d"><text x="40" y="212">绿=参与训练，灰=冻结</text></g>
+            </svg>
+            <figcaption>三种对齐方法的模型组成对比：PPO-RLHF 同时维护 Actor / Reference / Critic / Reward 四个模型；DPO 只用 Policy 与 Reference，把偏好数据直接转成分类目标；GRPO 去掉 Critic，改用组内 G 个响应的奖励均值作 Advantage baseline。颜色：绿色为参与训练，灰色为冻结。图为架构示意，不表示具体参数量。</figcaption>
+        </figure>
 
         <p>下面是三种对齐方法的全面对比：</p>
 
@@ -209,12 +264,23 @@
 
         <p>下一章，我们将进入课程的最高潮——<strong>Scaling Law与μP参数化</strong>。当模型规模从百万级增长到百亿级时，调参的底层逻辑会发生质变。学习率如何随模型大小缩放？参数更新的"万有引力定律"是什么？μP参数化如何让大模型训练不再依赖反复调参？我们第26章见。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Ouyang et al.,《Training language models to follow instructions with human feedback》(InstructGPT, 2022), <a href="https://arxiv.org/abs/2203.02155">arXiv:2203.02155</a>。PPO-RLHF 四模型架构与“PPO LR 约为 SFT 1/10”的出处。</li>
+                <li>Schulman et al.,《Proximal Policy Optimization Algorithms》(2017), <a href="https://arxiv.org/abs/1707.06347">arXiv:1707.06347</a>。</li>
+                <li>Rafailov et al.,《Direct Preference Optimization: Your Language Model is Secretly a Reward Model》(2023), <a href="https://arxiv.org/abs/2305.18290">arXiv:2305.18290</a>。DPO 损失函数与 β 参数的含义。</li>
+                <li>Shao et al.,《DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models》(2024), <a href="https://arxiv.org/abs/2402.03300">arXiv:2402.03300</a>。GRPO 的组内 baseline 与去 Critic 设计。</li>
+                <li>文中“Tang AI”的经验引用为课程内部的实践总结；KL=0.001、PPO LR 1e-6–3e-6、DPO β 0.1–0.5 等均为<strong>工程经验值</strong>，需结合具体模型调整。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="24.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="26.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
 </body>
