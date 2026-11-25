@@ -5,11 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第8章 激活函数：非线性之源</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        @media (max-width:900px) { .container { display:block; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +66,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>激活函数——神经网络的灵魂</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>激活函数——神经网络的灵魂</h1>
+            <p class="dek">没有激活函数，多层网络会退化成一个线性变换；激活函数在每层引入非线性，才是“深度”真正成立的前提。本章比较 ReLU 与它的现代替代者。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。今天我们来聊一个看似简单、但实质上是深度学习"灵魂"的话题——<strong>激活函数</strong>。</p>
 
@@ -51,7 +79,7 @@
 
         <p>AlexNet做了一件看似微小但意义重大的更改：在卷积层之后用ReLU替代了tanh。就是这么一个max(0, x)，让ImageNet的分类错误率从26%直接降到了15.3%。2012年之后的CNN架构几乎无一例外地采用了ReLU——VGG（19层）、GoogLeNet（22层）、ResNet（152层）。可以说，<strong>激活函数的变革直接推动了深度学习从"5层天花板"到"152层现实"的跨越</strong>。今天我们就把这个关键组件彻底讲透。</p>
 
-        <h3>激活函数的数学本质：非线性即深度</h3>
+        <h2>激活函数的数学本质：非线性即深度</h2>
 
         <p>为什么神经网络需要激活函数？我们来做一个小思维实验。</p>
 
@@ -68,7 +96,7 @@
 
         <p>从这个角度看，没有激活函数就没有深度学习。它是模型学习复杂模式的能力根源。</p>
 
-        <h3>ReLU的辉煌与困境</h3>
+        <h2>ReLU 的辉煌与困境</h2>
 
         <p>ReLU（Rectified Linear Unit）以 <strong>f(x) = max(0, x)</strong> 这个极简的数学形式，成为了深度学习历史上最具影响力的激活函数。它的成功主要归功于三个因素：</p>
 
@@ -106,7 +134,7 @@ class PReLU(nn.Module):
 
         <p>实践中，如果你发现训练过程中激活率持续下降（可以通过记录每层ReLU输出的稀疏度来监控），建议换成LeakyReLU或PReLU。很多调参老手的经验是："如果还想再提升精度可以将ReLU改成PReLU试试"。</p>
 
-        <h3>现代激活函数的设计哲学</h3>
+        <h2>现代激活函数的设计哲学</h2>
 
         <p>ReLU之后，研究者们开始思考一个问题：能不能设计出更好的激活函数？这个方向催生了两个重要的现代激活函数：<strong>GELU</strong>和<strong>SiLU/Swish</strong>。</p>
 
@@ -118,11 +146,34 @@ class PReLU(nn.Module):
 
         <p>SiLU的核心特性是<strong>自门控（Self-Gating）</strong>机制：不同于sigmoid作为外部门控（将输入先变换再与输入相乘），SiLU本身就是在做门控——输入值自己控制自己的通过程度。当x较大时，σ(x)接近1，SiLU(x) ≈ x；当x为很大的负数时，σ(x)接近0，SiLU(x) ≈ 0；在中间区域，SiLU(x)略微小于0（允许极小负数通过），形成了一个非单调的曲线。</p>
 
+        <figure id="act-figure">
+            <svg role="img" aria-labelledby="af-title af-desc" viewBox="0 0 760 330" xmlns="http://www.w3.org/2000/svg">
+                <title id="af-title">ReLU、GELU 与 SiLU 在 x=0 附近的形状对比</title>
+                <desc id="af-desc">同一坐标系（横轴输入 -3 到 3，纵轴输出约 -0.5 到 3）上画出 ReLU、GELU、SiLU 三条曲线：ReLU 在 x=0 处是硬拐点，负半轴恒为 0；GELU 与 SiLU 在 0 附近平滑过渡，SiLU 在负值区有轻微下探（非单调）。</desc>
+                <rect width="760" height="330" rx="16" fill="#f3f9f6"/>
+                <text x="24" y="34" font-size="15" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">硬拐点（ReLU） vs 平滑过渡（GELU / SiLU）</text>
+                <line x1="70" y1="250" x2="690" y2="250" stroke="#9db4ae" stroke-width="1.5"/>
+                <line x1="380" y1="100" x2="380" y2="285" stroke="#9db4ae" stroke-width="1.5"/>
+                <text x="380" y="272" font-size="11" fill="#53676d" text-anchor="middle" font-family="system-ui,'PingFang SC',sans-serif">0</text>
+                <polyline points="70,250 380,250 690,100" fill="none" stroke="#d06d4d" stroke-width="2.5"/>
+                <polyline points="70,250.2 173,252.3 277,257.9 380,250 483,207.9 587,152.3 690,100.2" fill="none" stroke="#7461ba" stroke-width="2.5"/>
+                <polyline points="70,257.1 173,261.9 277,263.4 380,250 483,213.4 587,161.9 690,107.1" fill="none" stroke="#147f80" stroke-width="2.5"/>
+                <circle cx="380" cy="250" r="4" fill="#d06d4d"/>
+                <g font-size="12.5" font-family="system-ui,'PingFang SC',sans-serif">
+                    <line x1="90" y1="60" x2="120" y2="60" stroke="#d06d4d" stroke-width="2.5"/><text x="128" y="64" fill="#203035">ReLU = max(0, x)</text>
+                    <line x1="90" y1="82" x2="120" y2="82" stroke="#7461ba" stroke-width="2.5"/><text x="128" y="86" fill="#203035">GELU = x·Φ(x)</text>
+                    <line x1="90" y1="104" x2="120" y2="104" stroke="#147f80" stroke-width="2.5"/><text x="128" y="108" fill="#203035">SiLU = x·σ(x)</text>
+                </g>
+                <text x="70" y="308" font-size="12.5" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">0 左侧：ReLU 恒为 0（可能“死亡”），GELU / SiLU 仍保留梯度；SiLU 在负值区轻微下探。</text>
+            </svg>
+            <figcaption>三条曲线在同一坐标系中：ReLU 在 x=0 处是不可微的硬拐点，其负半轴输出恒为 0，这正是 Dying ReLU 的几何来源；GELU 与 SiLU 是处处光滑的 S 形门控曲线，负半轴仍保留梯度；SiLU 在负值区有轻微下探（非单调）。曲线按各自定义式绘制，为教学示意。</figcaption>
+        </figure>
+
         <div class="highlight">
             <strong>平滑激活函数的优势：</strong>为什么平滑很重要？因为神经网络优化依靠梯度。ReLU在x=0处不可微（虽然实践中取左导或右导不影响收敛），且在x=0附近梯度剧烈变化。GELU和SiLU的梯度处处连续、平滑变化，使得梯度在传播过程中更加稳定。对Transformer这类深层、宽层的模型而言，这种平滑性带来的优化增益是可测量的——这也是为什么没有主流Transformer使用ReLU作为FFN激活函数。
         </div>
 
-        <h3>激活函数选型指南</h3>
+        <h2>激活函数选型指南</h2>
 
         <p>面对这么多激活函数，实际项目中应该如何选择？</p>
 
@@ -205,12 +256,24 @@ class PReLU(nn.Module):
 
         <p>下一章我们进入<strong>权重衰减与正则化的数学</strong>。激活函数决定了模型能否"学到"，而正则化决定了模型学到的能不能"泛化"——从表达能力转向泛化能力，这是调参路径上自然的下一步。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Krizhevsky, Sutskever &amp; Hinton,《ImageNet Classification with Deep Convolutional Neural Networks》(2012)。本章“ReLU 将 ImageNet top-5 错误率降至 15.3%（亚军 26.2%）”出自该文（AlexNet）。</li>
+                <li>Maas, Hannun &amp; Ng,《Rectifier Nonlinearities Improve Neural Network Acoustic Models》(2013)。LeakyReLU 的出处。</li>
+                <li>He et al.,《Delving Deep into Rectifiers》(2015), <a href="https://arxiv.org/abs/1502.01852">arXiv:1502.01852</a>。PReLU 与“ReLU 搭配 He 初始化”的出处。</li>
+                <li>Hendrycks &amp; Gimpel,《Gaussian Error Linear Units (GELUs)》(2016), <a href="https://arxiv.org/abs/1606.08415">arXiv:1606.08415</a>。</li>
+                <li>Ramachandran, Zoph &amp; Le,《Searching for Activation Functions》(2017), <a href="https://arxiv.org/abs/1710.05941">arXiv:1710.05941</a>。Swish/SiLU 的出处。</li>
+                <li>图 1 中的三条曲线按各自定义式绘制，为<strong>教学示意</strong>，非某次实验的实测曲线。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="07.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="09.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
 </body>
