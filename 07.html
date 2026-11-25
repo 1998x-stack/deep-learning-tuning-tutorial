@@ -5,11 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第7章 归一化层：训练稳定性的基石</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        @media (max-width:900px) { .container { display:block; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +66,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>归一化层——深度学习最重要的"基础设施"</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>归一化层——深度学习最重要的“基础设施”</h1>
+            <p class="dek">归一化的本质是“在哪个维度上算均值与方差”。同一张量，换一个归约轴，就从 BN 变成 LN、IN 或 GN，随之改变的是对 batch 的依赖、训练/推理一致性与小 batch 下的稳定性。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。如果让我投票选一个"过去十年对深度学习影响最大的技术"，我会选<strong>归一化层</strong>。不是Adam，不是Transformer，不是ResNet——而是归一化。因为归一化让以上所有技术都变得<strong>可训练</strong>了。</p>
 
@@ -51,7 +79,7 @@
 
         <p>这就是归一化的威力——它决定了你的模型是否能稳定收敛。</p>
 
-        <h3>归一化的本质</h3>
+        <h2>归一化的本质</h2>
 
         <p>归一化层的核心操作很简单：对中间激活值做标准化——减去均值除以标准差，再做一个可学习的仿射变换（乘以γ加上β）。公式就是一个标准化：</p>
 
@@ -59,6 +87,34 @@
         y = γ · x̂ + β</code></pre>
 
         <p>其中μ和σ²是统计量，ε是防止除零的小常数，γ和β是可学习参数（恢复表征能力）。不同归一化方法的根本区别在于——<strong>μ和σ²在哪个维度上计算</strong>。</p>
+
+        <figure id="norm-figure">
+            <svg role="img" aria-labelledby="nf-title nf-desc" viewBox="0 0 760 380" xmlns="http://www.w3.org/2000/svg">
+                <title id="nf-title">BN / LN / IN / GN 在同一张量上归一化的维度</title>
+                <desc id="nf-desc">四个 4×3 网格分别表示 BatchNorm、LayerNorm、InstanceNorm、GroupNorm：着色区域即计算均值与方差的维度。BN 按通道（整列）跨样本，LN 按样本（整行）跨通道，IN 按单个样本单通道（单元格），GN 按通道分组（多列块）。</desc>
+                <rect width="760" height="380" rx="16" fill="#f3f9f6"/>
+                <text x="24" y="34" font-size="16" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">同一张量，换一个归约轴 = 不同的归一化</text>
+                <g fill="#ffffff" stroke="#dce8e4">
+                    <rect x="110" y="66" width="88" height="66"/><rect x="110" y="140" width="88" height="66"/><rect x="110" y="214" width="88" height="66"/><rect x="110" y="288" width="88" height="66"/>
+                </g>
+                <g stroke="#9db4ae" stroke-width="1">
+                    <path d="M132 66V132 M154 66V132 M176 66V132 M110 88H198 M110 110H198"/>
+                    <path d="M132 140V206 M154 140V206 M176 140V206 M110 162H198 M110 184H198"/>
+                    <path d="M132 214V280 M154 214V280 M176 214V280 M110 236H198 M110 258H198"/>
+                    <path d="M132 288V354 M154 288V354 M176 288V354 M110 310H198 M110 332H198"/>
+                </g>
+                <g fill="#147f80" fill-opacity="0.82">
+                    <rect x="110" y="66" width="22" height="66"/><rect x="110" y="140" width="88" height="22"/>
+                    <rect x="110" y="214" width="22" height="22"/><rect x="110" y="288" width="44" height="66"/>
+                </g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-weight="700" font-size="15" fill="#164e54"><text x="16" y="104">BN</text><text x="16" y="178">LN</text><text x="16" y="252">IN</text><text x="16" y="326">GN</text></g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12.5" fill="#203035"><text x="220" y="94">跨 N × H × W，按通道 C 归一化</text><text x="220" y="116" fill="#b45309">依赖 batch：小 batch 统计噪声大</text></g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12.5" fill="#203035"><text x="220" y="168">在样本内跨 C × H × W 归一化</text><text x="220" y="190" fill="#147f80">不依赖 batch，逐 token 推理友好</text></g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12.5" fill="#203035"><text x="220" y="242">每个样本的每个通道在 H × W 上归一化</text><text x="220" y="264" fill="#53676d">风格迁移 / 图像生成常用</text></g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12.5" fill="#203035"><text x="220" y="316">通道分组，组内跨 (C/G) × H × W 归一化</text><text x="220" y="338" fill="#147f80">小 batch 检测/分割的替代方案</text></g>
+            </svg>
+            <figcaption>四个网格都是同一张 4×3 的“样本×通道”示意张量，着色区域就是计算 μ 与 σ² 的维度（空间维度 H×W 未单独画出）。BN 沿整列（一个通道）跨样本与空间归约；LN 沿整行（一个样本）跨通道与空间归约；IN 只在单个样本的单个通道内归约；GN 则把通道分成 G 组，在组内归约。这正是“换一个归约轴就换一种归一化”的含义。</figcaption>
+        </figure>
 
         <p>关于归一化为什么有效，有两个解释：</p>
 
@@ -72,7 +128,7 @@
             <strong>归一化 vs 初始化：</strong>初始化和归一化是解决"分布问题"的两层防线。初始化确保第一个step的激活值的分布合理。归一化确保整个训练过程中每层激活值的分布持续合理。初始化是起点，归一化是过程。两者互补，不能相互替代。用Kaiming的话说："He初始化 + BN是'2015-2020年间CNN训练的事实标准'。"
         </div>
 
-        <h3>Batch Normalization深度解析</h3>
+        <h2>Batch Normalization 深度解析</h2>
 
         <p>Batch Normalization（BN）是2015年由Google提出、开归一化之先河的方法。它在<strong>batch维度</strong>上计算均值和方差——对每个特征通道，在当前mini-batch的所有样本上计算统计量。</p>
 
@@ -107,7 +163,7 @@
             <strong>小batch场景下BN会退化。</strong>当batch size < 8时，BN的统计量噪声过大，训练不稳定。此时应该：用GroupNorm替代BN，或者用SyncBN跨卡同步，或者用LayerNorm（如果任务适合）。"小batch用BN"是新手最常见的一个错误。
         </div>
 
-        <h3>Layer Normalization为何主导Transformer</h3>
+        <h2>Layer Normalization 为何主导 Transformer</h2>
 
         <p>Layer Normalization（LN）于2016年提出，作为BN在序列模型上的替代方案。LN在<strong>特征维度</strong>上对每个样本独立做标准化——完全不依赖batch维度：</p>
 
@@ -142,7 +198,7 @@
             <strong>Transformer训练的核心配置：</strong>Pre-LN + RMS Norm + AdamW + Warmup + Cosine Decay 已经是大模型训练的标配。其中Pre-LN让训练更稳定，RMS Norm提速不降质，AdamW提供自适应学习率，Warmup+Cosine Decay提供学习率调度。这个配置几乎被所有现代大语言模型采用（GPT、Llama、Mistral、DeepSeek等）。
         </div>
 
-        <h3>Group Normalization及其他归一化</h3>
+        <h2>Group Normalization 及其他归一化</h2>
 
         <p>除了BN和LN之外，还有一些重要的归一化方法值得一提：</p>
 
@@ -152,7 +208,7 @@
 
         <p><strong>Instance Normalization（IN）——风格迁移专用。</strong>IN在每个样本的每个通道上独立做归一化。它的特性是：去掉样本间的对比度信息，保留风格信息——这正是风格迁移任务需要的。</p>
 
-        <h3>归一化方法选型速查表</h3>
+        <h2>归一化方法选型速查表</h2>
 
         <p>选择哪种归一化完全取决于你的任务架构和训练设置。下面是一个综合对比表：</p>
 
@@ -217,6 +273,34 @@
             <li><strong>多卡训练 + BN</strong> → 必须用SyncBN跨卡同步</li>
         </ul>
 
+        <h3>动手：按场景选归一化</h3>
+        <p>选择你的场景，读出推荐的第一选择。</p>
+        <div class="control-row" role="group" aria-label="归一化选型场景">
+            <button type="button" data-norm="cnn-big" aria-pressed="false">CNN · batch ≥ 16</button>
+            <button type="button" data-norm="cnn-small" aria-pressed="false">CNN · batch ≤ 8</button>
+            <button type="button" data-norm="seq" aria-pressed="false">Transformer / 序列</button>
+            <button type="button" data-norm="style" aria-pressed="false">风格迁移 / 图像生成</button>
+        </div>
+        <p class="status" id="norm-status" role="status" aria-live="polite">选择一个场景查看推荐。</p>
+        <script>
+        (function () {
+            var rec = {
+                'cnn-big': 'BatchNorm：CNN 的标准配置，Conv → BN → ReLU；多卡时改用 SyncBN。',
+                'cnn-small': 'GroupNorm（默认 G=32）：不依赖 batch，batch≤8 时比 BN 稳定。',
+                seq: 'LayerNorm，且用 Pre-LN 放在每个子层之前；现代大模型常用 RMS Norm 替代完整 LN。',
+                style: 'InstanceNorm：在每个样本的每个通道上归一化，去掉对比度、保留风格。'
+            };
+            var status = document.getElementById('norm-status');
+            var buttons = document.querySelectorAll('[data-norm]');
+            buttons.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b === btn)); });
+                    status.textContent = rec[btn.getAttribute('data-norm')];
+                });
+            });
+        })();
+        </script>
+
         <div class="highlight">
             <strong>重要提示：</strong>有些模型的默认配置可能会混合使用多种归一化。例如，ViT（Vision Transformer）虽然本质上是Transformer，但仍可能在某些位置使用BN（如patch embedding后的linear projection）。如果你不确定用什么归一化，先看你的模型继承哪个架构的血统——Attention血统走LN，Conv血统走BN/GN。
         </div>
@@ -225,12 +309,24 @@
 
         <p>下一章我们要进入<strong>激活函数：非线性之源</strong>。激活函数是神经网络具有表达能力的关键——没有它，多层网络等价于单层线性变换。我们会在下一章深入比较ReLU、GELU、Swish、Mish等激活函数，以及如何根据网络位置选择不同的激活函数。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Ioffe &amp; Szegedy,《Batch Normalization》(2015), <a href="https://arxiv.org/abs/1502.03167">arXiv:1502.03167</a>。</li>
+                <li>Ba, Kiros &amp; Hinton,《Layer Normalization》(2016), <a href="https://arxiv.org/abs/1607.06450">arXiv:1607.06450</a>。</li>
+                <li>Ulyanov et al.,《Instance Normalization》(2016), <a href="https://arxiv.org/abs/1607.08022">arXiv:1607.08022</a>；Wu &amp; He,《Group Normalization》(2018), <a href="https://arxiv.org/abs/1803.08494">arXiv:1803.08494</a>。</li>
+                <li>Xiong et al.,《On Layer Normalization in the Transformer Architecture》(2020), <a href="https://arxiv.org/abs/2002.04745">arXiv:2002.04745</a>。用于支撑 Pre-LN vs Post-LN 的稳定性对比。</li>
+                <li>Santurkar et al.,《How Does Batch Normalization Help Optimization?》(2018), <a href="https://arxiv.org/abs/1805.11604">arXiv:1805.11604</a>。本章“优化景观平滑”而非 ICS 的现代解释出自此文。</li>
+                <li>Zhang &amp; Sennrich,《Root Mean Square Layer Normalization》(2019), <a href="https://arxiv.org/abs/1910.07467">arXiv:1910.07467</a>。文中“RMS Norm 约提速 15–30%”为对其实验报告的概述。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="06.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="08.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
 </body>
