@@ -5,11 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第5章 批大小：梯度估计的精度博弈</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .calc .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { position:static; border-right:0; } }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media print { .sidebar, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +67,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>批大小——不止是"调到显存装满为止"</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>批大小——不止是“调到显存装满为止”</h1>
+            <p class="dek">batch size 不只是“把显存装满”的旋钮：它同时决定梯度估计的方差、噪声正则化的强度，以及能否用线性缩放法则把学习率放大。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。如果你问一个深度学习工程师"batch size怎么设"，最常见的回答是："调到显存装满为止。"这是对的，但是<strong>不够</strong>。批大小不仅是显存利用率的参数，它从根本上决定了梯度估计的精度、训练的动态过程、以及模型的最终泛化能力。</p>
 
@@ -51,7 +80,7 @@
 
         <p>教训：batch size不是"显存能塞多少就设多少"——你需要弄清楚<strong>effective batch size</strong>到底是多少，以及你的任务对batch size有没有硬性要求。</p>
 
-        <h3>批大小的统计学本质</h3>
+        <h2>批大小的统计学本质</h2>
 
         <p>从统计学的角度看，批大小的作用非常清晰。全批量梯度下降使用整个数据集计算精确梯度，但计算量太大。小批量SGD使用B个样本来估计梯度：</p>
 
@@ -62,6 +91,36 @@
         <pre><code>Var(∇f_B(θ)) = Var(∇f(θ)) / B</code></pre>
 
         <p>梯度估计的方差与batch size成<strong>反比</strong>。batch扩大一倍，方差减半。这就是批大小的统计学本质：<strong>你在用计算量换取梯度估计的精度</strong>。</p>
+
+        <figure id="bs-figure">
+            <svg role="img" aria-labelledby="bs-title bs-desc" viewBox="0 0 760 380" xmlns="http://www.w3.org/2000/svg">
+                <title id="bs-title">批大小如何同时改变梯度方差、噪声正则化与可用的学习率</title>
+                <desc id="bs-desc">左图：梯度噪声 σ_B 随批大小 B 按 1/√B 下降（方差按 1/B 下降），在 B=32、128、512 处标出三点。右图：B 放大 k 倍后梯度更准，可把学习率也放大 k 倍（线性缩放法则，须配合 warmup）；同时批变大削弱噪声正则化，可能收敛到尖锐极小值、泛化退化。</desc>
+                <rect width="760" height="380" rx="16" fill="#f3f9f6"/>
+                <text x="24" y="34" font-size="16" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">批大小 B 的三重效应</text>
+                <rect x="20" y="52" width="360" height="308" rx="12" fill="#ffffff" stroke="#dce8e4"/>
+                <line x1="60" y1="320" x2="356" y2="320" stroke="#53676d" stroke-width="1.5"/>
+                <line x1="60" y1="320" x2="60" y2="92" stroke="#53676d" stroke-width="1.5"/>
+                <polyline points="60,100 100,164 140,210 180,242 220,264 260,281 300,292 340,300" fill="none" stroke="#147f80" stroke-width="3"/>
+                <g fill="#d06d4d"><circle cx="180" cy="242" r="5"/><circle cx="260" cy="281" r="5"/><circle cx="340" cy="300" r="5"/></g>
+                <g font-size="12" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif" text-anchor="middle"><text x="180" y="334">32</text><text x="260" y="334">128</text><text x="340" y="334">512</text></g>
+                <text x="200" y="352" font-size="12" fill="#53676d" text-anchor="middle" font-family="system-ui,'PingFang SC',sans-serif">批大小 B（对数刻度）</text>
+                <text x="48" y="150" font-size="12" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif" transform="rotate(-90,48,150)" text-anchor="middle">梯度噪声 σ_B</text>
+                <text x="210" y="80" font-size="13" fill="#164e54" text-anchor="middle" font-family="system-ui,'PingFang SC',sans-serif">σ_B ∝ 1/√B，方差 ∝ 1/B</text>
+                <rect x="396" y="52" width="344" height="308" rx="12" fill="#ffffff" stroke="#dce8e4"/>
+                <rect x="412" y="70" width="312" height="124" rx="10" fill="#d6f1eb" stroke="#147f80"/>
+                <text x="428" y="96" font-size="14" font-weight="600" fill="#164e54" font-family="system-ui,'PingFang SC',sans-serif">B ×k ⇒ 梯度方差 ÷k，梯度更准</text>
+                <text x="428" y="122" font-size="13" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">⇒ 可用更大的学习率：</text>
+                <text x="428" y="146" font-size="14" font-weight="600" fill="#d06d4d" font-family="system-ui,'PingFang SC',sans-serif">lr_new = lr_old × k</text>
+                <text x="428" y="174" font-size="12.5" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">线性缩放法则：须配合 warmup，且主要适用于 SGD</text>
+                <rect x="412" y="212" width="312" height="124" rx="10" fill="#ffecd9" stroke="#d06d4d"/>
+                <text x="428" y="238" font-size="14" font-weight="600" fill="#a2431f" font-family="system-ui,'PingFang SC',sans-serif">B ↑ ⇒ 随机噪声正则化 ↓</text>
+                <text x="428" y="264" font-size="13" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">梯度直奔最近的极小值，</text>
+                <text x="428" y="288" font-size="13" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">更易被尖锐极小值捕获，</text>
+                <text x="428" y="312" font-size="13" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">固定 epoch 下泛化可能退化。</text>
+            </svg>
+            <figcaption>左：梯度噪声随批大小按 σ_B∝1/√B 下降（方差 ∝1/B），横轴为对数刻度，三点为 B=32/128/512 的示意值。右：批大小放大同时带来两个后果——梯度更准因而可放大学习率（线性缩放法则，须配 warmup、主要适用于 SGD），以及噪声正则化减弱可能使固定 epoch 下的泛化退化。曲线为教学示意，非实测数据。</figcaption>
+        </figure>
 
         <p>从<strong>中心极限定理</strong>的角度看，小批量梯度服从近似正态分布：</p>
 
@@ -77,7 +136,30 @@
             <strong>复现实验的关键：</strong>"batch size"不是一个数字——至少应该是三个数字的乘积。BugBuster喵在知乎上专门强调过："调参时要记录清楚——单卡batch、卡数、累积步数、总batch到底是多少。很多复现实验复现不出来，就是这里没说清。"每次做实验，请在日志里明确记录这三项。
         </div>
 
-        <h3>大批量泛化退化之谜</h3>
+        <h3>动手：算一算你的有效批大小</h3>
+        <p>把三个数填进去，看真正参与一次参数更新的样本数（effective batch size）。这也解释了为什么同样写“batch size=1024”，不同硬件的实际含义可能差很多。</p>
+        <form class="calc" id="bs-calc">
+            <label>单卡 batch<input type="number" id="per-device" value="64" min="1" step="1"></label>
+            <label>卡数<input type="number" id="gpus" value="4" min="1" step="1"></label>
+            <label>梯度累积步数<input type="number" id="accum" value="4" min="1" step="1"></label>
+        </form>
+        <p class="status" id="bs-result" role="status" aria-live="polite">有效批大小 = 64 × 4 × 4 = 1024</p>
+        <script>
+        (function () {
+            var f = document.getElementById('bs-calc');
+            var out = document.getElementById('bs-result');
+            function calc() {
+                var p = Math.max(1, parseInt(document.getElementById('per-device').value, 10) || 1);
+                var g = Math.max(1, parseInt(document.getElementById('gpus').value, 10) || 1);
+                var a = Math.max(1, parseInt(document.getElementById('accum').value, 10) || 1);
+                out.textContent = '有效批大小 = ' + p + ' × ' + g + ' × ' + a + ' = ' + (p * g * a) + '，每 ' + a + ' 个 micro-batch 更新一次参数。';
+            }
+            f.addEventListener('input', calc);
+            calc();
+        })();
+        </script>
+
+        <h2>大批量泛化退化之谜</h2>
 
         <p>虽然大batch的梯度估计更准确、训练更快，但大量实验发现了一个反直觉的现象：<strong>batch size超过某个阈值后，泛化性能开始下降</strong>。</p>
 
@@ -96,7 +178,7 @@
             <strong>注意区分：</strong>"大批量泛化退化"主要是在固定epoch数的情况下观察到的。如果给大batch模型更多epoch，让它多走几步，通常可以弥补泛化差距。在实践中，batch size翻倍时epoch也应该适当增加——也就是用更多的计算量来换取更高的精度。
         </div>
 
-        <h3>梯度累积的工作原理</h3>
+        <h2>梯度累积的工作原理</h2>
 
         <p>梯度累积（Gradient Accumulation）是在显存不足时等效扩大batch size的核心技术。它的原理非常简单：把一次大batch的梯度计算拆成多次小batch的梯度计算，累积起来，然后用累积的梯度一次更新参数。</p>
 
@@ -138,7 +220,7 @@
             <li>梯度累积和真正的大batch不完全等价——优化轨迹不同</li>
         </ul>
 
-        <h3>Batch Size与Learning Rate的线性缩放法则</h3>
+        <h2>Batch Size 与 Learning Rate 的线性缩放法则</h2>
 
         <p>batch size和学习率之间有一个重要的耦合关系——<strong>线性缩放法则（Linear Scaling Rule）</strong>。</p>
 
@@ -165,7 +247,7 @@
 
         <p>其中C是计算预算（FLOPs）。这个公式告诉我们三件事：一是计算量增大时，batch size应该变大，LR应该变小；二是LR随计算量下降得非常慢（C^(-0.125)），所以在大规模训练中LR基本稳定；三是给定计算预算后，大多数超参固定，只需要调batch size和LR——这相当于把高维调参降到了二维。</p>
 
-        <h3>不同任务的Batch Size推荐范围</h3>
+        <h2>不同任务的 Batch Size 推荐范围</h2>
 
         <table>
             <thead>
@@ -248,12 +330,22 @@
 
         <p>下一章进入<strong>初始化</strong>——训练开始前的最后一个关键参数。你可能听过这样的故事："一次惨痛的教训是用默认初始化，acc只能到70%，改成Xavier后acc到了98%。"没错，初始化的重要性超乎你的想象。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Goyal et al.,《Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour》(2017), <a href="https://arxiv.org/abs/1706.02677">arXiv:1706.02677</a>。本章“线性缩放法则（lr_new = lr_old × k）”“batch 256 基准 lr 0.1”与“须配合 warmup”均出自此文。</li>
+                <li>Keskar et al.,《On Large-Batch Training for Deep Learning: Generalization Gap and Sharp Minima》(2017), <a href="https://arxiv.org/abs/1609.04836">arXiv:1609.04836</a>。用于支撑“大批量倾向于收敛到尖锐极小值、固定 epoch 下泛化退化”的论断。</li>
+                <li>DeepSeek-AI,《DeepSeek LLM: Scaling Open-Source Language Models with Longtermism》(2024), <a href="https://arxiv.org/abs/2401.02954">arXiv:2401.02954</a>。本章 η_opt = 0.3118·C^(-0.1250)、B_opt = 0.2920·C^0.3271 两式出自该文的超参幂律。</li>
+                <li>图 1 中的梯度噪声曲线为按 σ_B∝1/√B 绘制的<strong>教学示意</strong>，非实测数据；文中的任务 batch size 推荐表为工程经验区间，非某一篇论文的定量结论。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="04.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="06.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
 </body>
