@@ -122,6 +122,8 @@ h_output = h  # 什么都不用做！</code></pre>
 
         <p>Inverted Dropout更优的原因很明显：推理时是用户最关心延迟和稳定性的时刻，任何额外的操作都不理想。训练时的除以p在反向传播时也自动处理好了梯度缩放，不需要额外操心。</p>
 
+        <div class="tip">
+            <strong>代码验证：</strong>在PyTorch中，<code>nn.Dropout(p=0.5)</code> 默认使用Inverted Dropout。训练时它会自动除以(1-p)，推理时调用<code>model.eval()</code>后Dropout层直接变成恒等映射。你不需要手动缩放任何东西，框架全部处理好了。但前提是——记得在推理前调用<code>model.eval()</code>！这是最常见的低级错误。
         </div>
 
         <figure id="drop-figure">
