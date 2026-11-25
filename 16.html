@@ -5,11 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第16章 NaN与梯度爆炸的根因分析</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        @media (max-width:900px) { .container { display:block; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +66,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>NaN——让每个深度学习工程师心跳骤停的四个字母</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>NaN 与梯度爆炸的根因分析</h1>
+            <p class="dek">NaN 不是一种病，而是三种指纹：突发型、渐变型、间歇型。先用 loss 曲线形状判断模式，再选排查手段——直接上梯度裁剪常常是南辕北辙。</p>
+        </header>
 
         <p>你一定经历过这个场景：深夜，你盯着终端窗口，loss正常下降，你正准备去睡觉——然后屏幕上突然跳出四个字母：<code>nan</code>。它可能出现在loss上、出现在验证集评估时、甚至出现在某个中间层的输出里。你的心跳瞬间加速，大脑开始疯狂回溯："我改了啥？刚才那个commit是不是有问题？这个实验已经跑了6个小时了……"</p>
 
@@ -51,7 +79,7 @@
 
         <p>我把NaN的出现模式归纳为三种，每一种都有自己的"指纹"。</p>
 
-        <h3>NaN出现的三种模式</h3>
+        <h2>NaN 出现的三种模式</h2>
 
         <p><strong>模式一：突然出现（突发型NaN）。</strong>Loss在某一step之前一切正常，然后突然从某个值直接跳变为<code>nan</code>。这是最常见的模式，也是最好诊断的。根因几乎总是"坏样本 + 数值不稳定操作"的组合：某条样本包含无效值（NaN/inf）、或者交叉熵中碰到了<code>log(0)</code>、除以零、平方根负数。其特征是NaN出现前loss没有任何发散趋势——这个step是0.23，下一个step就是nan。</p>
 
@@ -63,7 +91,23 @@
             <strong>重要提醒：</strong>NaN的三种模式指向完全不同的根因。不要看到NaN就直接上梯度裁剪——突发型NaN来自坏样本，裁剪无法让坏样本变好。先诊断模式，再选择方案。
         </div>
 
-        <h3>系统性排查方法</h3>
+        <figure id="nan-figure">
+            <svg role="img" aria-labelledby="nan-title nan-desc" viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg">
+                <title id="nan-title">三种 NaN 模式的 loss 曲线指纹</title>
+                <desc id="nan-desc">三个子图分别对应三种 NaN 模式：突发型在平稳下降中一步突变为 NaN；渐变型先下降后加速上扬最终溢出；间歇型反复出现尖尖又自行恢复。三者对应的根因分别为坏样本、梯度爆炸、FP16 边界溢出。</desc>
+                <rect width="760" height="300" rx="16" fill="#f3f9f6"/>
+                <g stroke="#9db4ae" stroke-width="1.2"><line x1="50" y1="250" x2="250" y2="250"/><line x1="50" y1="250" x2="50" y2="80"/><line x1="300" y1="250" x2="500" y2="250"/><line x1="300" y1="250" x2="300" y2="80"/><line x1="550" y1="250" x2="750" y2="250"/><line x1="550" y1="250" x2="550" y2="80"/></g>
+                <polyline points="50,150 80,142 110,136 140,130 170,126 200,122 220,120 228,95 235,88" fill="none" stroke="#d06d4d" stroke-width="2.5"/>
+                <polyline points="300,150 330,160 360,168 390,172 420,160 450,128 475,90" fill="none" stroke="#d06d4d" stroke-width="2.5"/>
+                <polyline points="550,150 580,136 610,130 625,102 640,134 670,122 685,100 700,126 725,122" fill="none" stroke="#d06d4d" stroke-width="2.5"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="13" font-weight="600" fill="#164e54" text-anchor="middle"><text x="150" y="58">突发型</text><text x="400" y="58">渐变型</text><text x="650" y="58">间歇型</text></g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12" fill="#53676d" text-anchor="middle"><text x="150" y="272">平稳中一步变为 NaN</text><text x="150" y="290">根因：坏样本 / log(0)</text><text x="400" y="272">先降后加速上扬</text><text x="400" y="290">根因：梯度爆炸</text><text x="650" y="272">尖尖后自行恢复</text><text x="650" y="290">根因：FP16 边界溢出</text></g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="11" fill="#53676d"><text x="14" y="250">loss</text><text x="14" y="90">高</text></g>
+            </svg>
+            <figcaption>三种 NaN 模式的 loss 曲线指纹：突发型没有预兆、直接跳变；渐变型先下降后加速发散；间歇型反复尖尖又恢复。图中曲线为教学示意的形状归纳，非真实训练日志；具体的轴刻度因任务而异，因此未标出数值。</figcaption>
+        </figure>
+
+        <h2>系统性排查方法</h2>
 
         <p>面对NaN，不要慌乱，按照三步走系统排查：</p>
 
@@ -103,7 +147,7 @@
             <strong>最佳实践：</strong>detect_anomaly会增加2-3倍的计算开销和额外显存，千万不要默认开启。仅在排查阶段短时使用，定位问题后立刻关闭。另外，detect_anomaly和梯度裁剪不兼容——裁剪后的梯度不再反映真实回传路径，可能无法捕捉原始问题，排查时先关掉裁剪。
         </div>
 
-        <h3>梯度裁剪的救急与局限</h3>
+        <h2>梯度裁剪的救急与局限</h2>
 
         <p>梯度裁剪（Gradient Clipping）是NaN出现后最常被"救急"使用的工具。它的原理很简单：在反向传播后、参数更新前，如果梯度的范数超过预设阈值，就将其缩放到阈值以内：</p>
 
@@ -121,7 +165,7 @@
 
         <p>更隐性的问题是：对于Adam优化器，裁剪不仅缩放当前step的梯度，还会影响动量估计（一阶矩和二阶矩）。频繁的裁剪让Adam的动量估计值偏离真实分布，长期使用可能导致optimizer状态退化。这就像一个一直在吃止痛药的人——疼痛消失了，但病灶还在恶化。</p>
 
-        <h3>混合精度的数值陷阱</h3>
+        <h2>混合精度的数值陷阱</h2>
 
         <p>混合精度训练（AMP）是加速训练的利器，但它引入了一类特有的NaN问题。<strong>FP16的表示范围是6.5e-5到65504</strong>——这意味着小于6.5e-5的值会被直接"下溢"为0，大于65504的值会被"上溢"为inf。在反向传播中，梯度很容易踩到这两个边界。</p>
 
@@ -143,7 +187,7 @@
 
         <p>注意顺序：先<code>unscale_</code>再裁剪再<code>step</code>。如果在梯度被缩放的状态下做裁剪，阈值需要做调整，容易出错。<code>GradScaler</code>会动态调整缩放因子——如果连续若干step没有出现梯度溢出，它会把scale调大；如果出现梯度溢出，它会把scale调小并跳过该step。这也是为什么在使用AMP时，间歇性NaN几乎可以忽略一部分——它们出现在scaler调整scale的阶段。</p>
 
-        <h3>NaN排查速查表</h3>
+        <h2>NaN 排查速查表</h2>
 
         <table>
             <thead>
@@ -187,7 +231,7 @@
             </tbody>
         </table>
 
-        <h3>NaN诊断工具函数</h3>
+        <h2>NaN 诊断工具函数</h2>
 
         <p>下面是一个完整的NaN诊断工具函数，集合了上述诊断方法的精华。在模型训练脚本中插桩使用，遇到NaN时可以自动打印所有关键信息：</p>
 
@@ -237,12 +281,22 @@
 
         <p>下一章，我们将讨论一个调试领域的"银弹"——<strong>小数据过拟合测试</strong>。如果你的模型连32条数据都无法过拟合，那么别调参了，先去找bug。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Pascanu, Mikolov &amp; Bengio,《On the difficulty of training recurrent neural networks》(2013), <a href="https://arxiv.org/abs/1211.5063">arXiv:1211.5063</a>。梯度爆炸与按范数裁剪（clip-by-norm）的经典出处。</li>
+                <li>Micikevicius et al.,《Mixed Precision Training》(2017), <a href="https://arxiv.org/abs/1710.03740">arXiv:1710.03740</a>。Loss Scaling 与 FP16 数值范围问题。</li>
+                <li>PyTorch 官方文档《Automatic differentiation package - torch.autograd》(detect_anomaly)、《GradScaler》(AMP)。</li>
+                <li>图 1 的三种曲线是按“突发 / 渐变 / 间歇”的形状归纳绘制的<strong>教学示意</strong>，非真实训练日志；NaN 模式归因为经验总结。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="15.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="17.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
 </body>
