@@ -5,11 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第12章 损失函数的设计哲学</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        @media (max-width:900px) { .container { display:block; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +66,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>损失函数——决定了模型"关心什么"</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>损失函数——决定了模型“关心什么”</h1>
+            <p class="dek">损失函数定义了模型的世界观。本章对比交叉熵与 MSE 的梯度、Focal Loss 的调制因子、Label Smoothing 的校准效果，以及多任务损失的量级平衡。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。今天我们来聊一个触及问题本质的话题——<strong>损失函数（Loss Function）</strong>。</p>
 
@@ -51,7 +79,7 @@
 
         <p>我见过一个最夸张的例子：一个团队做文本分类，用交叉熵训练，模型F1=0.82。他们试了各种调参——学习率、优化器、网络结构——F1始终上不去。后来把交叉熵换成了Focal Loss（γ=2），什么都没改，F1=0.87。不是模型容量不够，不是数据不够——而是<strong>损失函数没有告诉模型应该关注什么</strong>。在那个数据集中，少量难分类的样本才是决定性能上限的关键。交叉熵把它们和大量简单样本同等对待，而Focal Loss让模型把精力聚焦到了该聚焦的地方。</p>
 
-        <h3>交叉熵 vs MSE的梯度特性对比</h3>
+        <h2>交叉熵 vs MSE 的梯度特性对比</h2>
 
         <p>先看两个最常用的损失函数——交叉熵（Cross Entropy）和均方误差（MSE）——在分类任务中的梯度行为差异。这个差异决定了为什么分类任务几乎不用MSE。</p>
 
@@ -70,7 +98,7 @@
 
         <p>而MSE配合sigmoid的梯度中包含 <strong>σ(z) * (1-σ(z))</strong> 项——这是sigmoid的导数。当输出接近0或1（即分类很确定）时，梯度趋近于0。这意味着在训练早期还没学好时，梯度反而大；训练后期快稳定了，梯度反而小——这和我们的需求正好相反。交叉熵的梯度特性使得分类任务收敛更快、更稳定。</p>
 
-        <h3>Focal Loss的巧妙设计</h3>
+        <h2>Focal Loss 的巧妙设计</h2>
 
         <p>标准交叉熵对所有样本一视同仁——简单样本和难分类样本的loss权重相同。当数据存在大量简单负样本时（比如目标检测中一张图有10万个候选框，只有几个包含目标），简单的负样本的loss总和会淹没少数难分类正样本的信号。</p>
 
@@ -112,7 +140,33 @@ def focal_loss(logits, targets, gamma=2.0, alpha=0.25):
             <strong>γ的搜索策略：</strong>以10倍步长搜索。先试γ=0.5，效果好则降为γ=0.2、0.1；效果差则升为γ=2、5。不要默认使用γ=2——在轻度不平衡时可能有害（过度关注噪声样本）。γ越大，模型越"聚焦"于难分类样本，但也越容易过拟合于标注错误的样本。
         </div>
 
-        <h3>Label Smoothing的校准原理</h3>
+        <figure id="loss-figure">
+            <svg role="img" aria-labelledby="lf-title lf-desc" viewBox="0 0 760 340" xmlns="http://www.w3.org/2000/svg">
+                <title id="lf-title">Focal Loss 调制因子 (1−pt)^γ 随 γ 的变化</title>
+                <desc id="lf-desc">横轴为模型对正确类的预测概率 pt（0 到 1），纵轴为调制因子 (1−pt)^γ。γ=0 时恒为 1（退化为标准交叉熵）；γ 越大，pt 高的易分样本权重被压得越低，难分样本（pt 小）权重接近 1，从而把训练注意力集中到难样本上。</desc>
+                <rect width="760" height="340" rx="16" fill="#f3f9f6"/>
+                <text x="24" y="34" font-size="15" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">调制因子 (1−pt)^γ：γ 越大，易分样本越被压低</text>
+                <line x1="80" y1="280" x2="660" y2="280" stroke="#9db4ae" stroke-width="1.5"/>
+                <line x1="80" y1="280" x2="80" y2="60" stroke="#9db4ae" stroke-width="1.5"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="11" fill="#53676d" text-anchor="middle"><text x="80" y="296">0</text><text x="370" y="296">0.5</text><text x="660" y="296">1</text></g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="11" fill="#53676d" text-anchor="end"><text x="72" y="284">0</text><text x="72" y="64">1</text></g>
+                <text x="370" y="320" font-size="12" fill="#53676d" text-anchor="middle" font-family="system-ui,'PingFang SC',sans-serif">pt（正确类的预测概率）</text>
+                <polyline points="80,60 660,60" fill="none" stroke="#53676d" stroke-width="2.5"/>
+                <polyline points="80,60 225,115 370,170 515,225 660,280" fill="none" stroke="#7461ba" stroke-width="2.5"/>
+                <polyline points="80,60 225,123.7 370,225 515,266.3 660,280" fill="none" stroke="#d06d4d" stroke-width="3"/>
+                <polyline points="80,60 225,167.8 370,273.1 515,279.8 660,280" fill="none" stroke="#147f80" stroke-width="2.5"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12.5">
+                    <line x1="470" y1="78" x2="496" y2="78" stroke="#53676d" stroke-width="2.5"/><text x="504" y="82" fill="#203035">γ = 0（交叉熵）</text>
+                    <line x1="470" y1="98" x2="496" y2="98" stroke="#7461ba" stroke-width="2.5"/><text x="504" y="102" fill="#203035">γ = 1</text>
+                    <line x1="470" y1="118" x2="496" y2="118" stroke="#d06d4d" stroke-width="3"/><text x="504" y="122" fill="#a2431f" font-weight="600">γ = 2（常用）</text>
+                    <line x1="470" y1="138" x2="496" y2="138" stroke="#147f80" stroke-width="2.5"/><text x="504" y="142" fill="#203035">γ = 5</text>
+                </g>
+                <text x="90" y="52" font-size="12" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">pt 小时权重接近 1（难样本不被抑制）</text>
+            </svg>
+            <figcaption>四条曲线是调制因子 (1−pt)^γ 在不同 γ 下的取值：γ=0 时恒为 1，退化为标准交叉熵；γ=2（红色）在 pt=0.5 时权重约 0.25、在 pt=0.9 时约 0.01，即“越容易的样本被压得越低”。横轴 pt 是模型对正确类的预测置信度。曲线按定义式绘制，为教学示意。</figcaption>
+        </figure>
+
+        <h2>Label Smoothing 的校准原理</h2>
 
         <p>标准分类任务使用one-hot标签——正确类为1，其余为0。这看起来天经地义，但其实它有一个隐藏的问题：<strong>鼓励过度自信</strong>。为了让正确类的softmax输出接近1，模型会不断增大正确类的logit，使其趋于无穷大。这导致模型对所有预测都极度自信——即使在面对模糊样本时，也会输出0.999这样的概率。</p>
 
@@ -146,7 +200,7 @@ def label_smoothing_loss(logits, targets, alpha=0.1):
             <strong>什么时候跳过Label Smoothing？</strong>当训练数据标注绝对正确且无噪声时，平滑反而会损失信息。在二分类中平滑效果也有限（类别数太少，平滑后标签几乎没变化）。如果你只关注top-1准确率而不需要概率校准，Label Smoothing也未必有帮助——它的主要收益在改善置信度校准上。
         </div>
 
-        <h3>多任务损失平衡</h3>
+        <h2>多任务损失平衡</h2>
 
         <p>在多任务学习中，不同任务的损失函数量级不同——一个分类loss可能是0.1量级，一个回归loss可能是10量级。直接把它们加起来，大loss的任务会主导梯度，小loss的任务"被绑架"：</p>
 
@@ -220,12 +274,23 @@ def label_smoothing_loss(logits, targets, alpha=0.1):
 
         <p>下一章我们进入<strong>数据增强与泛化的信息论视角</strong>。损失函数定义了模型的"目标"，但数据决定了模型能看到什么——而数据增强本质上是在告诉模型"什么是你不需要关心的"。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Lin et al.,《Focal Loss for Dense Object Detection》(2017), <a href="https://arxiv.org/abs/1708.02002">arXiv:1708.02002</a>。调制因子 (1−pt)^γ 与 α 平衡项均出自此文。</li>
+                <li>Szegedy et al.,《Rethinking the Inception Architecture for Computer Vision》(2015), <a href="https://arxiv.org/abs/1512.00567">arXiv:1512.00567</a>。Label Smoothing 的提出。</li>
+                <li>Kendall, Gal &amp; Cipolla,《Multi-Task Learning Using Uncertainty to Weigh Losses for Scene Geometry and Semantics》(2018), <a href="https://arxiv.org/abs/1705.07115">arXiv:1705.07115</a>。同方差不确定性加权。</li>
+                <li>Chen et al.,《GradNorm: Gradient Normalization for Adaptive Loss Balancing in Deep Multitask Networks》(2018), <a href="https://arxiv.org/abs/1711.02257">arXiv:1711.02257</a>。</li>
+                <li>图 1 的四条曲线按 (1−pt)^γ 定义式绘制，为<strong>教学示意</strong>；文中的 γ 搜索建议为工程经验。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="11.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="13.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
 </body>
