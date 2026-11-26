@@ -5,11 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第24章 SFT数据工程的科学方法</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button, .calc button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +71,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>SFT——数据质量比模型大小更重要</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>SFT——数据质量比模型大小更重要</h1>
+            <p class="dek">LoRA 决定你能跑多快，数据决定你能跑多远。本章讲 SFT 前的 Prompt 先行原则、数据质量的边际收益、chat template 不一致等“隐形杀手”，以及为什么中后期 loss 与效果会脱节。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。上一章我们深入研究了LoRA微调的数学本质。但做微调的人都知道一个道理：<strong>LoRA决定了你能跑多快，而数据决定了你能跑多远</strong>。</p>
 
@@ -51,7 +84,7 @@
 
         <p>今天这章，我们来系统梳理SFT数据工程的科学方法。你会学到：为什么调prompt比做SFT优先级更高？400条高质量数据为什么比4000条脏数据更有效？那些让无数人掉坑的Chat Template不一致问题到底怎么排查？以及为什么大模型SFT中后期loss与效果脱节严重。</p>
 
-        <h3>Prompt先行原则</h3>
+        <h2 id="prompt-first">Prompt先行原则</h2>
 
         <p>在做任何SFT之前，你必须先做一件事——<strong>调prompt验证基座模型的基本能力</strong>。这是整个SFT流程中最重要也是最容易被跳过的一步。</p>
 
@@ -67,7 +100,7 @@
 
         <p>反过来也一样——如果prompt不复杂就能有不错的效果，那也别把prompt构造得太复杂。最简单有效的方案就是最好的方案。</p>
 
-        <h3>数据质量 vs 数量的边际收益</h3>
+        <h2 id="quality-vs-quantity">数据质量 vs 数量的边际收益</h2>
 
         <p>假设你已经确认基座模型够用了，下一步就是数据构造。这里有一个反直觉的结论：<strong>SFT不需要海量数据</strong>。</p>
 
@@ -85,7 +118,31 @@
             <strong>数据构造流水线：</strong>设计种子prompt集合 → 强模型（GPT-4/Claude）生成候选回答 → 多模型（GPT-4 + Claude + Gemini）交叉验证打分 → 一致性筛选 → 人工抽检10-20% → 去重和格式统一 → 成品数据集。这条流水线在多个团队中被证明是最可靠的SFT数据生产方式。
         </div>
 
-        <h3>SFT数据工程的隐形杀手</h3>
+        <figure id="pipeline-fig">
+            <svg role="img" aria-labelledby="pf-t pf-d" viewBox="0 0 760 320" xmlns="http://www.w3.org/2000/svg">
+                <title id="pf-t">SFT 数据构造流水线</title>
+                <desc id="pf-d">七步流水线：种子 Prompt 集合、强模型生成候选回答、多模型交叉验证打分、一致性筛选、人工抽检 10–20%、去重与格式统一、成品数据集。前三步横向从左到右，后三步在第二行从右到左。</desc>
+                <rect width="760" height="320" rx="16" fill="#f3f9f6"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="13" text-anchor="middle">
+                    <rect x="30" y="50" width="160" height="56" rx="10" fill="#e2f1ec" stroke="#147f80"/><text x="110" y="83" fill="#164e54">种子 Prompt 集合</text>
+                    <rect x="215" y="50" width="160" height="56" rx="10" fill="#e2f1ec" stroke="#147f80"/><text x="295" y="76" fill="#164e54">强模型生成候选</text><text x="295" y="94" fill="#53676d">（GPT-4 / Claude）</text>
+                    <rect x="400" y="50" width="160" height="56" rx="10" fill="#efeaf9" stroke="#7461ba"/><text x="480" y="76" fill="#4b3f86">多模型交叉验证</text><text x="480" y="94" fill="#53676d">（打分）</text>
+                    <rect x="585" y="50" width="150" height="56" rx="10" fill="#efeaf9" stroke="#7461ba"/><text x="660" y="83" fill="#4b3f86">一致性筛选</text>
+                    <rect x="585" y="200" width="150" height="56" rx="10" fill="#fbe9e0" stroke="#d06d4d"/><text x="660" y="233" fill="#a8482c">人工抽检 10–20%</text>
+                    <rect x="400" y="200" width="160" height="56" rx="10" fill="#fbe9e0" stroke="#d06d4d"/><text x="480" y="233" fill="#a8482c">去重与格式统一</text>
+                    <rect x="215" y="200" width="160" height="56" rx="10" fill="#203035"/><text x="295" y="233" fill="#ffffff">成品数据集</text>
+                </g>
+                <g stroke="#9fb3ad" stroke-width="1.8" fill="none" marker-end="url(#pa)">
+                    <line x1="190" y1="78" x2="213" y2="78"/><line x1="375" y1="78" x2="398" y2="78"/><line x1="560" y1="78" x2="583" y2="78"/>
+                    <line x1="660" y1="106" x2="660" y2="198"/>
+                    <line x1="585" y1="228" x2="562" y2="228"/><line x1="400" y1="228" x2="377" y2="228"/>
+                </g>
+                <defs><marker id="pa" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#9fb3ad"/></marker></defs>
+            </svg>
+            <figcaption>图 1（教学示意，流程来自正文的“数据构造流水线”）：强模型生成 + 多模型交叉验证 + 人工抽检的三重把关，是抑制数据噪声、保证风格统一的关键。</figcaption>
+        </figure>
+
+        <h2 id="hidden-killers">SFT数据工程的隐形杀手</h2>
 
         <p>这可能是本章最重要的一个章节。SFT数据工程中有几个极其隐蔽的bug，一旦触发，轻则训练白费，重则模型完全不可用。而这些bug的共同特点是——<strong>训练loss看起来一切正常</strong>。</p>
 
@@ -96,6 +153,20 @@
         <p>你的检查清单：加载tokenizer后确认<code>chat_template</code>字段非空；写一个端到端验证函数，确保同一个messages序列在训练和推理时的格式化结果完全一致；将template写入训练配置文件而非依赖默认值；不同推理框架（vLLM、TGI）对chat template的自动处理可能不同，必须逐项验证。</p>
 
         <p><strong>隐形杀手二：Loss只计算assistant部分。</strong>SFT训练中，loss应该只计算assistant回复部分的token。User问句和system prompt必须被mask掉。如果你在实现时不小心把user部分也计入了loss，模型会学到"预测用户的问法"——这完全不是你想要的。BugBuster喵说："assistant部分和user部分都参与loss，模型学得乱七八糟。"</p>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="SFT 损失定义式，可横向滚动">
+            <math display="block" aria-label="SFT 损失：只对 assistant 部分的 token 求负对数似然之和，m_t 为损失掩码">
+                <mrow>
+                    <msub><mi>ℒ</mi><mi>SFT</mi></msub><mo>(</mo><mi>θ</mi><mo>)</mo><mo>=</mo>
+                    <mo>−</mo>
+                    <munderover><mo>∑</mo><mrow><mi>t</mi><mo>=</mo><mn>1</mn></mrow><mi>T</mi></munderover>
+                    <msub><mi>m</mi><mi>t</mi></msub>
+                    <mi>log</mi><mo>⁡</mo><msub><mi>π</mi><mi>θ</mi></msub><mo>(</mo>
+                    <msub><mi>y</mi><mi>t</mi></msub><mo>|</mo><mi>x</mi><mo>,</mo><msub><mi>y</mi><mrow><mo>&lt;</mo><mi>t</mi></mrow></msub><mo>)</mo>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1（SFT 目标，带损失掩码）：m_t ∈ {0,1} 为损失掩码，只有 assistant 回复位置的 m_t=1，system prompt 与 user 问句位置 m_t=0（在 HF Trainer 中对应 labels 置为 −100）。这正是“隐形杀手二”必须排查的实现细节。</p>
 
         <p><strong>隐形杀手三：训练和推理预处理不一致。</strong>数据清洗、截断策略、特殊token处理——训练和推理必须完全相同。Tokenizer不一致是最常见的问题：训练时用的tokenizer和推理时的不匹配，导致生成结果异常。特别是当你在Hugging Face上加载模型时，<code>tokenizer_config.json</code>中的<code>chat_template</code>字段可能在不同版本的transformers库中不同，必须显式检查。</p>
 
@@ -108,11 +179,28 @@
             5. 确认loss mask正确：system prompt和user部分mask=0，assistant部分mask=1
         </div>
 
-        <h3>数据混合与课程学习</h3>
+        <h2 id="mixing-curriculum">数据混合与课程学习</h2>
 
         <p>SFT数据除了质量，还有两个非常重要的"组织"维度。</p>
 
         <p><strong>单轮 vs 多轮数据比例。</strong>BugBuster喵明确指出："大模型SFT里，单轮和多轮数据比例就是超参数。"这个比例对模型最终的对话行为有直接影响：纯QA场景（如问答机器人、分类任务）单轮占比80-100%；对话助手场景（如客服、聊天）多轮占比30-50%。比例失衡会导致模型在某种对话模式下表现极差。这个比例不是拍脑袋定的——把它当成超参数进行实验搜索。</p>
+
+        <div class="calc" role="group" aria-label="单轮与多轮配比计算器">
+            <label>总样本数
+                <input id="mt-total" type="number" min="1" step="10" value="1000" inputmode="numeric">
+            </label>
+            <label>多轮占比 %
+                <input id="mt-ratio" type="number" min="0" max="100" step="1" value="30" inputmode="numeric">
+            </label>
+            <button id="mt-btn" type="button">计算配比</button>
+        </div>
+        <div class="control-row" role="group" aria-label="场景预设">
+            <button type="button" data-mt="5">纯QA · 多轮5%</button>
+            <button type="button" data-mt="30">对话助手 · 多轮30%</button>
+            <button type="button" data-mt="50">聊天 · 多轮50%</button>
+        </div>
+        <p class="status" id="mt-status" role="status" aria-live="polite"></p>
+        <p class="note">交互为教学示意：按预设场景把单轮/多轮比例换算成具体条数，说明“比例本身就是一个需要实验搜索的超参数”。</p>
 
         <p><strong>课程学习：由易到难排序。</strong>对数据集标注难易程度，训练时先喂简单样本、再逐步增加困难样本的比重。Tang AI的经验是："可以对数据集设置一个难易程度，让模型先学简单后学难的，有利于模型的加速收敛。"具体策略：前20%的training steps以简单样本为主，中间60%均匀混合，最后20%增加困难样本比例。这在数据量大、任务多样时效果尤其明显。</p>
 
@@ -163,7 +251,7 @@ def mask_user_loss(input_ids, labels, tokenizer):
     # user和system部分在labels中设为-100
     return labels</code></pre>
 
-        <h3>SFT监控：不要迷信Loss</h3>
+        <h2 id="monitor">SFT监控：不要迷信Loss</h2>
 
         <p>最后也是最重要的一条原则——<strong>不要迷信Loss</strong>。</p>
 
@@ -240,13 +328,40 @@ def mask_user_loss(input_ids, labels, tokenizer):
 
         <p>SFT是连接预训练模型和实际应用的桥梁，而数据工程是这座桥梁的基石。掌握了LoRA微调的数学本质（第23章）和SFT数据工程的科学方法（本章），你已经具备了让大模型"学会做新事情"的完整能力。但"学会做"不等于"做得好"——后者要靠RLHF。下一章，我们将进入<strong>RLHF对齐训练的底层逻辑</strong>——从PPO到DPO再到GRPO，看RL如何将模型能力推到上限。我们第25章见。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Zhou et al.,《LIMA: Less Is More for Alignment》(2023), <a href="https://arxiv.org/abs/2305.11206">arXiv:2305.11206</a>。1000 条精调数据即可获得强对齐效果，印证“数据质量重于数量”。</li>
+                <li>Ouyang et al.,《Training language models to follow instructions with human feedback》(InstructGPT, 2022), <a href="https://arxiv.org/abs/2203.02155">arXiv:2203.02155</a>。监督微调 + 人工偏好对齐的原始流程。</li>
+                <li>Wang et al.,《Self-Instruct: Aligning Language Models with Self-Generated Instructions》(2022), <a href="https://arxiv.org/abs/2212.10560">arXiv:2212.10560</a>。用强模型生成指令数据的流水线。</li>
+                <li>Wang et al.,《How Far Can Camels Go? Exploring the State of Instruction Tuning on Open Resources》(2023), <a href="https://arxiv.org/abs/2306.04751">arXiv:2306.04751</a>。SFT 数据混合比例对下游效果的系统研究。</li>
+                <li>公式 1 为带损失掩码的标准 SFT 目标；“每个垂域 400 条足矣”、人工抽检 10–20% 等经验数值来自正文引用的实践总结，属<strong>教学示意</strong>。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="23.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="25.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function val(id){ return parseFloat(document.getElementById(id).value); }
+    function calc(){
+        var n=Math.max(0,Math.round(val('mt-total'))), r=Math.min(100,Math.max(0,val('mt-ratio'))), s=document.getElementById('mt-status');
+        if(!isFinite(n)||!isFinite(r)){ s.textContent='请输入总样本数与多轮占比。'; return; }
+        var multi=Math.round(n*r/100), single=n-multi;
+        s.textContent='多轮 '+multi+' 条，单轮 '+single+' 条（多轮占比 '+r+'%）';
+    }
+    document.getElementById('mt-btn').addEventListener('click',calc);
+    document.getElementById('mt-total').addEventListener('change',calc);
+    document.getElementById('mt-ratio').addEventListener('change',calc);
+    document.querySelectorAll('[data-mt]').forEach(function(b){ b.addEventListener('click',function(){ document.getElementById('mt-ratio').value=b.getAttribute('data-mt'); calc(); }); });
+    calc();
+})();
+</script>
 </body>
 </html>
