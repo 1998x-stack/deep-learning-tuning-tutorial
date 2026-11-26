@@ -5,11 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第11章 学习率调度：从固定到自适应</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button, .calc button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +70,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>学习率调度——决定"怎么走"比"走多大步"更重要</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>学习率调度——决定"怎么走"比"走多大步"更重要</h1>
+            <p class="dek">固定学习率前期收敛慢、后期震荡不收敛。本章用“步长变化曲线”统一看待 Step Decay、Cosine 退火、Warmup+Cosine 与 Cyclical LR，给出余弦退火公式、选型对比与一个可交互的学习率计算器。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。今天我们来讲一个被很多人低估、但实际上和初始学习率一样重要的主题——<strong>学习率调度（Learning Rate Scheduling）</strong>。</p>
 
@@ -53,7 +85,7 @@
 
         <p>同一组参数，唯一的变化就是加了一个学习率调度。不是模型架构的问题，不是初始学习率的问题——而是<strong>训练过程中学习率如何变化</strong>的问题。从那以后，我做的每一个实验都默认加上学习率调度。</p>
 
-        <h3>为什么需要衰减学习率</h3>
+        <h2 id="why-decay">为什么要衰减学习率</h2>
 
         <p>要理解为什么固定学习率不够好，先想一下梯度下降的几何过程。训练初期，参数距离最优解很远，损失函数的曲面很"陡峭"——梯度大、方向明确。此时我们希望大步向前，快速接近最优区域。但训练后期，参数已经接近最优解，损失函数的曲面变得"平坦"——梯度小、方向模糊。此时如果还保持大步长，参数就会在最优解附近来回震荡，永远无法精确收敛。</p>
 
@@ -61,7 +93,7 @@
 
         <p><strong>学习率调度的核心思想</strong>就是根据训练进度动态调整步长：前期大步探索，后期小步精调。不同的调度策略本质上是不同的"步长变化曲线"——决定了训练过程中何时加速、何时减速、何时重启。</p>
 
-        <h3>主流调度策略的数学原理</h3>
+        <h2 id="strategies">主流调度策略的数学原理</h2>
 
         <p><strong>Step Decay（阶梯衰减）</strong>是最经典的做法。在预设的epoch/step将LR乘以衰减系数（通常0.1）。例如每30个epoch将LR降低10倍。优点是简单、可解释——每次衰减后可以观察模型反应，判断是否还有继续训练的价值。缺点是衰减时机需要人工预设，选得不好会错过最佳衰减点。</p>
 
@@ -86,13 +118,74 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
 
         <p>Cosine Decay的优势在于平滑——它能自然地完成从"大步探索"到"小步精调"的过渡，没有Step Decay那种突然跳变的阶梯。在训练早期，cosine曲线下降较慢（保持大LR的时间较长），让模型有充分的时间跳出局部陷阱；在训练后期，cosine曲线迅速拉低（快速进入小LR精调），防止震荡。</p>
 
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="余弦退火学习率公式，可横向滚动">
+            <math display="block" aria-label="余弦退火：eta_t 等于 eta_min 加上二分之一乘以左括号 eta_max 减 eta_min 右括号，再乘以 1 加 cos 左括号 pi 乘以 T_cur 除以 T_max 右括号">
+                <mrow>
+                    <msub><mi>η</mi><mi>t</mi></msub>
+                    <mo>=</mo>
+                    <msub><mi>η</mi><mi>min</mi></msub>
+                    <mo>+</mo>
+                    <mfrac><mn>1</mn><mn>2</mn></mfrac>
+                    <mrow><mo>(</mo><msub><mi>η</mi><mi>max</mi></msub><mo>−</mo><msub><mi>η</mi><mi>min</mi></msub><mo>)</mo></mrow>
+                    <mrow><mo>(</mo><mn>1</mn><mo>+</mo><mi>cos</mi><mo>(</mo><mi>π</mi><mfrac><msub><mi>T</mi><mi>cur</mi></msub><msub><mi>T</mi><mi>max</mi></msub></mfrac><mo>)</mo><mo>)</mo></mrow>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">上式即 PyTorch <code>CosineAnnealingLR</code> 的闭式定义（公式 1）：<code>T_cur</code> 是当前步、<code>T_max</code> 是半周期总步数，随着 <code>T_cur</code> 从 0 增至 <code>T_max</code>，余弦项从 1 平滑降到 −1，学习率从 <code>η_max</code> 落入 <code>η_min</code>。</p>
+
+        <figure id="sched-figure">
+            <svg role="img" aria-labelledby="sf-title sf-desc" viewBox="0 0 760 350" xmlns="http://www.w3.org/2000/svg">
+                <title id="sf-title">四种学习率调度策略的步长曲线对比</title>
+                <desc id="sf-desc">横轴为归一化训练进度 0 到 1，纵轴为归一化学习率 0 到 1。Step Decay 为阶梯状下降；Cosine Decay 为半余弦平滑下降；Warmup+Cosine 先在前 20% 进度线性升到峰值再余弦衰减；Cyclical LR 在上下界之间周期性三角振荡。</desc>
+                <rect width="760" height="350" rx="16" fill="#f3f9f6"/>
+                <text x="24" y="34" font-size="15" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">“步长变化曲线”：横轴是训练进度，纵轴是学习率</text>
+                <line x1="80" y1="280" x2="680" y2="280" stroke="#9db4ae" stroke-width="1.5"/>
+                <line x1="80" y1="280" x2="80" y2="60" stroke="#9db4ae" stroke-width="1.5"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="11" fill="#53676d" text-anchor="middle"><text x="80" y="296">0</text><text x="380" y="296">0.5</text><text x="680" y="296">1</text></g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="11" fill="#53676d" text-anchor="end"><text x="72" y="284">0</text><text x="72" y="64">1</text></g>
+                <text x="380" y="322" font-size="12" fill="#53676d" text-anchor="middle" font-family="system-ui,'PingFang SC',sans-serif">归一化训练进度</text>
+                <text x="34" y="175" font-size="12" fill="#53676d" text-anchor="middle" transform="rotate(-90 34 175)" font-family="system-ui,'PingFang SC',sans-serif">归一化学习率</text>
+                <!-- Step Decay -->
+                <polyline points="80,60 380,60 380,258 530,258 530,278 680,278" fill="none" stroke="#7461ba" stroke-width="2.5"/>
+                <!-- Cosine Decay -->
+                <polyline points="80,60 230,92 380,170 530,248 680,280" fill="none" stroke="#147f80" stroke-width="2.5"/>
+                <!-- Warmup + Cosine -->
+                <polyline points="80,280 196,60 312,92 428,170 544,248 680,280" fill="none" stroke="#d06d4d" stroke-width="3"/>
+                <!-- Cyclical LR (triangular) -->
+                <polyline points="80,236 230,60 380,236 530,60 680,236" fill="none" stroke="#53676d" stroke-width="2" stroke-dasharray="6 4"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12.5">
+                    <line x1="470" y1="74" x2="496" y2="74" stroke="#7461ba" stroke-width="2.5"/><text x="504" y="78" fill="#203035">Step Decay</text>
+                    <line x1="470" y1="94" x2="496" y2="94" stroke="#147f80" stroke-width="2.5"/><text x="504" y="98" fill="#203035">Cosine Decay</text>
+                    <line x1="470" y1="114" x2="496" y2="114" stroke="#d06d4d" stroke-width="3"/><text x="504" y="118" fill="#a2431f" font-weight="600">Warmup + Cosine</text>
+                    <line x1="470" y1="134" x2="496" y2="134" stroke="#53676d" stroke-width="2" stroke-dasharray="6 4"/><text x="504" y="138" fill="#203035">Cyclical LR</text>
+                </g>
+            </svg>
+            <figcaption>四条曲线是四类调度在归一化进度上的步长形状（学习率均按峰值归一到 1，为教学示意）。Step Decay 是阶梯跳变；Cosine Decay 平滑降到底；Warmup+Cosine 先线性爬升再余弦回落，避免冷启动时大更新；Cyclical LR 在 0.2 与 1 之间周期性三角振荡，反复“重启”以跳出局部极小。图中“Warmup 占前 20% 进度、Cyclical 下界 0.2”为便于对比的示意取值。</figcaption>
+        </figure>
+
         <p><strong>Warmup + Cosine</strong>是这个时代的事实标准模板。Warmup处理训练初期的"冷启动"问题——训练开始时参数随机、梯度统计不稳定，直接上大学习率会导致初始更新过大甚至发散。Warmup从小学习率开始，逐步增长到目标学习率，然后再接Cosine Decay平滑下降：</p>
 
         <div class="tip">
             <strong>万能模板：</strong>如果你不确定用什么学习率调度策略，直接用 AdamW + Linear Warmup + Cosine Decay。这个组合几乎适用于所有场景——CV分类、NLP预训练、LLM微调。它不是每个场景的最优解，但它是所有场景的最优"默认选择"。
         </div>
 
-        <h3>Cyclical LR的探索-利用权衡</h3>
+        <div class="calc" id="lr-calc">
+            <label>峰值学习率 η_max<input id="lr-max" type="number" value="0.0003" step="0.0001"></label>
+            <label>最小学习率 η_min<input id="lr-min" type="number" value="0.000001" step="0.000001"></label>
+            <label>总步数 T_max<input id="lr-total" type="number" value="10000" step="1000"></label>
+            <label>Warmup 步数<input id="lr-warm" type="number" value="1000" step="100"></label>
+            <label>当前步<input id="lr-step" type="number" value="5000" step="100"></label>
+            <button id="lr-calc-btn" type="button">计算当前学习率</button>
+        </div>
+        <div class="control-row">
+            <button type="button" data-step-mode="warm">跳到 Warmup 中段</button>
+            <button type="button" data-step-mode="mid">跳到衰减中点</button>
+            <button type="button" data-step-mode="end">跳到训练末尾</button>
+        </div>
+        <p class="status" id="lr-status" role="status" aria-live="polite"></p>
+        <p class="note">交互计算器：前 <code>Warmup 步数</code> 内学习率随步数线性增长（线性 warmup），之后按公式 1 的余弦曲线从 η_max 衰减到 η_min。把“当前步”改大或改小，可以看到同一套超参在不同训练阶段的步长差异。</p>
+
+        <h2 id="cyclical">Cyclical LR 的探索-利用权衡</h2>
 
         <p>前面讲的Step Decay和Cosine Decay都有一个共同特点：学习率是单调下降的。但Cyclical LR（循环学习率）打破了这个模式——学习率在上下界之间周期性变化，训练过程中反复上升和下降。</p>
 
@@ -155,7 +248,7 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             </tbody>
         </table>
 
-        <h3>Warmup步数设置原则</h3>
+        <h2 id="warmup">Warmup 步数设置原则</h2>
 
         <p>Warmup虽然在训练初期增加了一个"预热"阶段，但它的效果非常显著——尤其对Transformer和深层网络。设置Warmup步数需要平衡几个因素：</p>
 
@@ -222,13 +315,53 @@ for epoch in range(num_epochs):
 
         <p>下一章我们进入<strong>损失函数的设计哲学</strong>。学习率调度决定了"怎么走"，而损失函数决定了"往哪里走"——模型的优化目标是什么、关心什么、怎么判断"做得好不好"。这是调参中最接近问题本质的一步。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Loshchilov &amp; Hutter,《SGDR: Stochastic Gradient Descent with Warm Restarts》(2016), <a href="https://arxiv.org/abs/1608.03983">arXiv:1608.03983</a>。余弦退火与“热重启”的来源，公式 1 的半余弦形式即出自此文。</li>
+                <li>Smith,《Cyclical Learning Rates for Training Neural Networks》(2015), <a href="https://arxiv.org/abs/1506.01186">arXiv:1506.01186</a>。三角/循环学习率与 LR Range Test。</li>
+                <li>Goyal et al.,《Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour》(2017), <a href="https://arxiv.org/abs/1706.02677">arXiv:1706.02677</a>。线性 warmup 的提出。</li>
+                <li>He et al.,《Bag of Tricks for Image Classification with CNNs》(2018), <a href="https://arxiv.org/abs/1812.01187">arXiv:1812.01187</a>。warmup 与 cosine 的工程化经验。</li>
+                <li>图 1 的曲线按各调度定义式绘制并做归一化，为<strong>教学示意</strong>；“Warmup 占前 20% 进度”“Cyclical 下界 0.2”为对比用示意取值。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="10.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="12.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function val(id){ return parseFloat(document.getElementById(id).value); }
+    function compute(){
+        var mx=val('lr-max'), mn=val('lr-min'), total=val('lr-total'), warm=val('lr-warm'), step=val('lr-step');
+        var s=document.getElementById('lr-status');
+        if(!(total>0) || !(step>=0)){ s.textContent='请填写有效的步数。'; return; }
+        if(warm>0 && step<warm){
+            s.textContent='当前学习率 ≈ '+(mx*step/warm).toExponential(3)+'（线性 warmup 阶段 '+step+'/'+warm+'）';
+        } else {
+            var p=Math.min(Math.max((step-warm)/(total-warm),0),1);
+            var lr=mn+(mx-mn)*0.5*(1+Math.cos(Math.PI*p));
+            s.textContent='当前学习率 ≈ '+lr.toExponential(3)+'（余弦衰减，进度 '+(p*100).toFixed(1)+'%）';
+        }
+    }
+    document.getElementById('lr-calc-btn').addEventListener('click', compute);
+    document.querySelectorAll('[data-step-mode]').forEach(function(b){
+        b.addEventListener('click', function(){
+            var total=val('lr-total'), warm=val('lr-warm'), mode=b.getAttribute('data-step-mode'), step;
+            if(mode==='warm') step=Math.max(1,Math.round(warm*0.5));
+            else if(mode==='mid') step=Math.round((warm+total)/2);
+            else step=total;
+            document.getElementById('lr-step').value=step;
+            compute();
+        });
+    });
+    compute();
+})();
+</script>
 </body>
 </html>
