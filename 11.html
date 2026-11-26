@@ -29,6 +29,7 @@
         .control-row button, .calc button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
         .status { min-height:1.5em; font-weight:600; color:var(--accent); }
         .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
         @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
         @media (max-width:900px) { .container { display:block !important; } .sidebar { border-right:0; } }
         @media print { .sidebar, .control-row, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
