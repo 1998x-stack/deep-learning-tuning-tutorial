@@ -5,11 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第17章 小数据过拟合测试：调试的银弹</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button, .calc button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +71,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>如果你的模型连32条数据都拟合不了——别调参了，去找Bug</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>如果你的模型连 32 条数据都拟合不了——别调参了，去找 Bug</h1>
+            <p class="dek">小数据过拟合测试是深度学习调试体系中优先级最高的系统验证。本章讲它的五步流程、随机标签“对照组”、以及为什么神经网络一定有能力过拟合小数据，并给出一个参数/样本容量估算器。</p>
+        </header>
 
         <p>在深度学习调试的江湖里，流传着一句极具分量的话。它来自Andrej Karpathy，被无数调参工程师奉为圭臬：</p>
 
@@ -56,7 +89,7 @@
 
         <p>今天的章节，就是围绕这个核心理念展开的。"小数据过拟合测试"是我认为整个深度学习调试体系中<strong>优先级最高的系统验证</strong>——没有之一。</p>
 
-        <h3>过拟合测试的原理</h3>
+        <h2 id="principle">过拟合测试的原理</h2>
 
         <p>小数据过拟合测试的流程极其简单，但它的覆盖面极其惊人：</p>
 
@@ -72,6 +105,38 @@
 
         <p>如果以上步骤做完，你的训练loss仍然不能逼近零（对于分类任务）或非常接近零（对于回归任务），那么你的代码、数据或训练配置有严重问题。这时不要谈调参——先去修复根本问题。</p>
 
+        <figure id="overfit-fig">
+            <svg role="img" aria-labelledby="of-title of-desc" viewBox="0 0 760 330" xmlns="http://www.w3.org/2000/svg">
+                <title id="of-title">小数据过拟合测试的五步流程与判定分支</title>
+                <desc id="of-desc">五个步骤依次为抽样 32 到 100 条、关闭正则化、放大模型容量、使用合理学习率、训练足够 epoch；随后判断 train loss 能否逼近零，若能则说明代码与数据管线基本正确并建立基线，若不能则先按其五类 Bug 排查。</desc>
+                <rect width="760" height="330" rx="16" fill="#f3f9f6"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12.5" fill="#203035">
+                    <rect x="20" y="30" width="132" height="46" rx="8" fill="#fff" stroke="#dce8e4"/><text x="86" y="58" text-anchor="middle">① 抽样 32–100</text>
+                    <rect x="172" y="30" width="132" height="46" rx="8" fill="#fff" stroke="#dce8e4"/><text x="238" y="58" text-anchor="middle">② 关闭正则</text>
+                    <rect x="324" y="30" width="132" height="46" rx="8" fill="#fff" stroke="#dce8e4"/><text x="390" y="58" text-anchor="middle">③ 放大容量</text>
+                    <rect x="476" y="30" width="132" height="46" rx="8" fill="#fff" stroke="#dce8e4"/><text x="542" y="58" text-anchor="middle">④ 合理 LR</text>
+                    <rect x="628" y="30" width="112" height="46" rx="8" fill="#fff" stroke="#dce8e4"/><text x="684" y="58" text-anchor="middle">⑤ 多跑 epoch</text>
+                </g>
+                <g stroke="#9db4ae" stroke-width="1.5" fill="none">
+                    <line x1="152" y1="53" x2="172" y2="53"/><line x1="304" y1="53" x2="324" y2="53"/><line x1="456" y1="53" x2="476" y2="53"/><line x1="608" y1="53" x2="628" y2="53"/>
+                    <path d="M390 76 L390 120"/><path d="M384 114 L390 122 L396 114"/>
+                </g>
+                <rect x="290" y="120" width="200" height="54" rx="10" fill="#e8f5f0" stroke="#147f80"/>
+                <text x="390" y="152" text-anchor="middle" font-size="12.5" fill="#164e54" font-family="system-ui,'PingFang SC',sans-serif">train loss → 0 / acc → 1 ?</text>
+                <g stroke="#9db4ae" stroke-width="1.5" fill="none">
+                    <path d="M390 174 L390 205 L190 205 L190 240"/><path d="M184 234 L190 242 L196 234"/>
+                    <path d="M390 205 L570 205 L570 240"/><path d="M564 234 L570 242 L576 234"/>
+                </g>
+                <rect x="40" y="242" width="300" height="62" rx="10" fill="#fbe9e3" stroke="#d06d4d"/>
+                <text x="190" y="266" text-anchor="middle" font-size="12.5" fill="#a2431f" font-weight="600" font-family="system-ui,'PingFang SC',sans-serif">否：先查 Bug</text>
+                <text x="190" y="288" text-anchor="middle" font-size="11" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">shape / 预处理 / loss 输入 / train-eval / dtype</text>
+                <rect x="420" y="242" width="300" height="62" rx="10" fill="#e8f5f0" stroke="#147f80"/>
+                <text x="570" y="266" text-anchor="middle" font-size="12.5" fill="#164e54" font-weight="600" font-family="system-ui,'PingFang SC',sans-serif">是：代码/数据基本正确</text>
+                <text x="570" y="288" text-anchor="middle" font-size="11" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">建立收敛速度/损失值基线，再上全量数据</text>
+            </svg>
+            <figcaption>小数据过拟合测试流程（为教学示意）：前五步是准备条件（抽样、去正则、放大容量、合理 LR、足量训练），核心是一个二元判定——train loss 能否降到接近零。判定“否”时不要动超参，先按右侧五类实现 Bug 逐个排查；判定“是”则建立一条可复用的性能基线。判定阈值按任务类型调整。</figcaption>
+        </figure>
+
         <p>反过来讲，如果小数据过拟合测试通过了，你其实已经验证了以下四个方面：</p>
 
         <ul>
@@ -83,7 +148,7 @@
 
         <p>知乎上有一句我非常认同的总结：<strong>"小数据测试是必要条件，不是充分条件。"</strong>——小数据通不过，说明一定有严重bug；小数据通过了，也只能说代码和数据管线基本正确，不能保证全量数据的表现。</p>
 
-        <h3>随机标签测试——过拟合测试的"对照组"</h3>
+        <h2 id="random-label">随机标签测试——过拟合测试的“对照组”</h2>
 
         <p>小数据过拟合测试有一个更强的变体——<strong>随机标签测试</strong>。如果说过拟合测试是验证"正例"，那随机标签测试就是验证"反例"。</p>
 
@@ -101,13 +166,35 @@
 
         <p>随机标签测试是一个非常简单但极其强大的"完整性检查"。如果你要训一个重要的模型，跑一轮随机标签测试只花你几分钟，但它能帮你省下几天的"瞎调"时间。</p>
 
-        <h3>为什么NN一定能过拟合小数据</h3>
+        <h2 id="capacity">为什么 NN 一定能过拟合小数据</h2>
 
         <p>这里有一个需要正面的问题：你凭什么相信神经网络一定能过拟合小数据？这不是盲目的信仰，这是有理论基础的。</p>
 
         <p><strong>通用逼近定理（Universal Approximation Theorem）</strong>告诉我们：一个足够宽的单隐藏层神经网络，可以以任意精度逼近任意的连续函数。把这个定理翻译成人话：只要你的网络有足够的参数，它可以"画"一条穿过你所有训练数据的曲线——无论这些数据的分布多么复杂。</p>
 
         <p>现实是，你手里很可能有一个百万参数的模型，和32-100条数据。参数数量远大于数据量，这意味着模型的自由度远大于约束数量。从自由度的角度讲，这个系统有足够多的"旋钮"去记住所有样本。如果你连用这么多旋钮都无法拟合这么少的数据，只能说明有些旋钮是坏的——代码bug、数据错误、或者超参数离谱。</p>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="参数与样本比例公式，可横向滚动">
+            <math display="block" aria-label="参数样本比 rho 等于模型参数量 N_params 除以样本数 N_samples">
+                <mrow>
+                    <mi>ρ</mi><mo>=</mo>
+                    <mfrac><msub><mi>N</mi><mtext>params</mtext></msub><msub><mi>N</mi><mtext>samples</mtext></msub></mfrac>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1：参数/样本比 ρ。一个百万参数模型喂 64 条样本时 ρ ≈ 15625，自由度远大于约束——理论上它完全有能力记住这些样本。因此小数据过拟合失败时，优先怀疑实现而非容量。</p>
+
+        <div class="calc">
+            <label>模型参数量 N_params<input id="cr-params" type="number" value="1000000" step="1000" min="1"></label>
+            <label>样本数 N_samples<input id="cr-samples" type="number" value="64" step="1" min="1"></label>
+            <button id="cr-calc-btn" type="button">计算 ρ</button>
+        </div>
+        <div class="control-row">
+            <button type="button" data-cap="big">大模型 + 32 样本</button>
+            <button type="button" data-cap="small">小模型 + 64 样本</button>
+        </div>
+        <p class="status" id="cr-status" role="status" aria-live="polite"></p>
+        <p class="note">交互估算器：ρ = 参数量 / 样本数。ρ 越大，模型越有“记住”小数据的理论能力，不过拟合就越可能是实现 bug。按“大模型 + 32 样本”看一个极端比例，再按“小模型 + 64 样本”看容量受限的情形。</p>
 
         <p>这也是Andrej Karpathy那句箴言的数学基础。Karpathy反复强调的是：<strong>不要怀疑神经网络的能力</strong>。知乎上有位答主说得更加直白："不要怀疑NN的能力，不要怀疑NN的能力，不要怀疑NN的能力。就我们调参狗能遇到的问题，NN没法拟合的，这概率是有多小？"</p>
 
@@ -116,7 +203,7 @@
             当模型连小数据都无法过拟合时，你的思维模式应该是"我的代码或数据有bug"，而不是"这个模型的容量不够"。先假设你的代码有bug，逐步验证每个环节——这是深度学习调试的第一要义。
         </div>
 
-        <h3>最常见的五种实现Bug</h3>
+        <h2 id="five-bugs">最常见的五种实现 Bug</h2>
 
         <p>根据Berkeley的Josh Robin等人总结，以及知乎社区大量调参工程师的实战经验，以下五种Bug是导致小数据过拟合失败的最常见原因。我把它们整理成一个"五位一体"的排查清单：</p>
 
@@ -166,7 +253,7 @@
             print(f"[失败] {num_samples}条数据无法过拟合，检查代码/dataloader/loss")
             return False</code></pre>
 
-        <h3>"五位一体"Bug排查清单</h3>
+        <h2 id="checklist">“五位一体”Bug 排查清单</h2>
 
         <table>
             <thead>
@@ -215,13 +302,48 @@
 
         <p>下一章，我们将回到本章开头那个问题的高阶延续——当小数据测试通过了（模型代码正确、数据正确），但模型在全量数据上依然表现不佳，接下来应该动哪个参数？超参数的调参优先级和方法论到底是什么？这就是第18章要讨论的内容。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Hornik, Stinchcombe &amp; White,《Multilayer Feedforward Networks are Universal Approximators》(1989), <a href="https://doi.org/10.1016/0893-6080(89)90020-8">Neural Networks 2:359</a>。通用逼近定理。</li>
+                <li>Zhang et al.,《Understanding deep learning requires rethinking generalization》(2017), <a href="https://arxiv.org/abs/1611.03530">arXiv:1611.03530</a>。实验证明深度网络可以拟合随机标签——随机标签测试的理论背景。</li>
+                <li>Smith &amp; Topin,《Deep Convolutional Neural Network Design Patterns》(2017), <a href="https://arxiv.org/abs/1611.00847">arXiv:1611.00847</a>。小数据过拟合测试与常见实现陷阱的系统总结。</li>
+                <li>公式 1 为参数/样本比的定义；流程图、代码框架与结论均为<strong>教学示意</strong>，ρ 的判定阈值（1/10/100）为经验取值。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="16.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="18.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function val(id){ return parseFloat(document.getElementById(id).value); }
+    function setv(id,v){ document.getElementById(id).value=v; }
+    function calc(){
+        var p=val('cr-params'), n=val('cr-samples'), s=document.getElementById('cr-status');
+        if(!(p>0)||!(n>0)){ s.textContent='请输入正的参数量与样本数。'; return; }
+        var rho=p/n, v;
+        if(rho>=100) v='应能轻松记住 → 若仍不过拟合，几乎可以确定是实现 Bug，去查 shape/预处理/loss/train-eval/dtype。';
+        else if(rho>=10) v='容量充足 → 大概率能过拟合；若不能，优先排查实现 bug。';
+        else if(rho>=1) v='边界地带 → 先放大模型或延长训练；仍不过拟合再查 bug。';
+        else v='容量可能不足 → 换更大模型，或这本来就是“欠拟合”而非 bug。';
+        s.textContent='ρ ≈ '+rho.toLocaleString('zh-CN',{maximumFractionDigits:2})+'：'+v;
+    }
+    document.getElementById('cr-calc-btn').addEventListener('click', calc);
+    document.querySelectorAll('[data-cap]').forEach(function(b){
+        b.addEventListener('click', function(){
+            if(b.getAttribute('data-cap')==='big'){ setv('cr-params',1000000); setv('cr-samples',32); }
+            else { setv('cr-params',100); setv('cr-samples',64); }
+            calc();
+        });
+    });
+    calc();
+})();
+</script>
 </body>
 </html>
