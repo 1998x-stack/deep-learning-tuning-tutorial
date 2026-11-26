@@ -5,11 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第15章 训练曲线全解读</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:8.5rem; border:1px solid var(--border); border-radius:.5rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button, .calc button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +71,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>训练曲线——深度学习唯一的"心电图"</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>训练曲线——深度学习唯一的“心电图”</h1>
+            <p class="dek">不用拆开模型、不用跑额外评估，单看 train loss 与 val loss 的相对关系，就能判断模型“病了没有、病在哪里”。本章用四种模式统一解读曲线，并给出一个可交互的曲线诊断器。</p>
+        </header>
 
         <p>想象一下你是心内科医生，面前有一张心电图——波形整齐代表健康、波形异常代表病变。在深度学习中，<strong>训练曲线就是你的心电图</strong>。你不用拆开模型看内部参数，不用跑复杂的验证集评估，单看loss曲线的形态就能判断出模型"病了没有、病在哪里"。</p>
 
@@ -51,7 +84,7 @@
 
         <p>知乎上有个很精辟的总结："真正高效的调参，是先诊断，再下手。你的模型到底卡在哪里？"而诊断的第一个工具，就是阅读训练曲线。</p>
 
-        <h3>Train Loss vs Val Loss的四种关系</h3>
+        <h2 id="four-modes">Train Loss vs Val Loss 的四种关系</h2>
 
         <p>训练曲线诊断的核心是监控<strong>train loss</strong>和<strong>val loss</strong>两个曲线的关系。不是看各自的绝对值，而是看它们的<strong>相对位置和差距变化趋势</strong>。这就像听诊时同时听心脏的舒张期和收缩期——单一曲线给不了你完整的信息，但两者对比能告诉你大量信息。</p>
 
@@ -73,7 +106,32 @@
             "两者低且同步降" → 训练正常，检查业务指标
         </div>
 
-        <h3>Loss震荡 ≠ LR太大</h3>
+        <figure id="curve-fig">
+            <svg role="img" aria-labelledby="cf-title cf-desc" viewBox="0 0 760 440" xmlns="http://www.w3.org/2000/svg">
+                <title id="cf-title">Train Loss 与 Val Loss 的四种关系模式</title>
+                <desc id="cf-desc">四联图。模式一两者都高（欠拟合）；模式二训练低、验证高且 gap 扩大（过拟合）；模式三两者都低但停滞（平台期）；模式四两者同步下降且 gap 小（健康）。每图横轴为训练步数，纵轴为 loss；青色为 train loss，橙色为 val loss。</desc>
+                <rect width="760" height="440" rx="16" fill="#f3f9f6"/>
+                <text x="30" y="30" font-size="13.5" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">模式一：两者都高 → 欠拟合</text>
+                <line x1="40" y1="70" x2="40" y2="190" stroke="#9db4ae"/><line x1="40" y1="190" x2="330" y2="190" stroke="#9db4ae"/>
+                <polyline points="40,100 330,112" fill="none" stroke="#147f80" stroke-width="2.5"/><polyline points="40,94 330,100" fill="none" stroke="#d06d4d" stroke-width="2.5"/>
+                <text x="400" y="30" font-size="13.5" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">模式二：训练低、验证高 → 过拟合</text>
+                <line x1="410" y1="70" x2="410" y2="190" stroke="#9db4ae"/><line x1="410" y1="190" x2="700" y2="190" stroke="#9db4ae"/>
+                <polyline points="410,142 700,187" fill="none" stroke="#147f80" stroke-width="2.5"/><polyline points="410,136 700,160" fill="none" stroke="#d06d4d" stroke-width="2.5"/>
+                <text x="30" y="250" font-size="13.5" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">模式三：两者都低但停滞 → 平台期</text>
+                <line x1="40" y1="290" x2="40" y2="410" stroke="#9db4ae"/><line x1="40" y1="410" x2="330" y2="410" stroke="#9db4ae"/>
+                <polyline points="40,380 330,382" fill="none" stroke="#147f80" stroke-width="2.5"/><polyline points="40,377 330,378" fill="none" stroke="#d06d4d" stroke-width="2.5"/>
+                <text x="400" y="250" font-size="13.5" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">模式四：两者同步下降 → 健康</text>
+                <line x1="410" y1="290" x2="410" y2="410" stroke="#9db4ae"/><line x1="410" y1="410" x2="700" y2="410" stroke="#9db4ae"/>
+                <polyline points="410,350 700,404" fill="none" stroke="#147f80" stroke-width="2.5"/><polyline points="410,344 700,401" fill="none" stroke="#d06d4d" stroke-width="2.5"/>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12">
+                    <line x1="40" y1="432" x2="66" y2="432" stroke="#147f80" stroke-width="2.5"/><text x="74" y="436" fill="#203035">train loss</text>
+                    <line x1="170" y1="432" x2="196" y2="432" stroke="#d06d4d" stroke-width="2.5"/><text x="204" y="436" fill="#203035">val loss</text>
+                </g>
+            </svg>
+            <figcaption>四种基本模式（为教学示意）：判据不是 loss 的绝对值，而是两条曲线的相对位置与 gap 的变化趋势。模式二要注意 gap 是否<strong>持续扩大</strong>，而非只是绝对值大（高噪声任务 gap 15–20% 也可属正常）；模式三的“两者都低”其实是当前学习率不足以跨过平坦区。横轴为步数、纵轴为 loss，仅为示意形状。</figcaption>
+        </figure>
+
+        <h2 id="oscillation">Loss 震荡 ≠ 学习率太大</h2>
 
         <p>这是一个非常常见的误诊。很多人在看到loss曲线剧烈震荡时，第一反应是"学习率太大了"，然后直接把LR降一个数量级。但很多时候，震荡的根本原因是<strong>batch size太小</strong>而不是LR太大。</p>
 
@@ -90,7 +148,7 @@
 
         <p>一个实用的经验法则是：如果使用了Adam等自适应优化器仍然大幅震荡，那大概率不是LR问题，而是batch size或数据质量问题。</p>
 
-        <h3>Loss平台期的多种成因</h3>
+        <h2 id="plateau">Loss 平台期的多种成因</h2>
 
         <p>Loss先快速下降几个数量级（如从4.0降到0.5），然后突然停滞，几乎不再变化。这是最让人抓狂的场景——看上去模型"学会了"一些东西，但就是无法进一步改善。平台期的成因不是单一的，误判成因会导致"瞎调"几十组参数都没有效果。</p>
 
@@ -102,7 +160,7 @@
 
         <p><strong>原因四：进入了鞍点（需要动量）。</strong>高维损失曲面中，鞍点远比局部极小点多。在鞍点附近，梯度趋近于零，SGD会卡住。解法：使用Momentum（或增大momentum系数如从0.9到0.99），或者切换到Adam——Adam的自适应学习率和动量机制能有效穿越鞍点。</p>
 
-        <h3>为什么观察Loss胜于观察准确率</h3>
+        <h2 id="loss-vs-acc">为什么观察 Loss 胜于观察准确率</h2>
 
         <p>在监控训练状态时，有一个被反复验证的经验法则：<strong>优先看loss，不要过早盯着准确率。</strong></p>
 
@@ -116,7 +174,7 @@
             <strong>实操建议：</strong>在TensorBoard或WandB中，将loss放在最显眼的位置，准确率/其他指标放在次要位置。每次看训练状态，第一眼扫loss曲线，第二眼看准确率。只有当loss降到一个合理的低值后，才把注意力转移到准确率等业务指标上。
         </div>
 
-        <h3>常见曲线形态速查表</h3>
+        <h2 id="cheatsheet">常见曲线形态速查表</h2>
 
         <table>
             <thead>
@@ -172,6 +230,16 @@
 
         <p>下面是一个训练曲线实时解析的代码片段，可以在训练过程中自动打印曲线状态诊断：</p>
 
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="相对泛化差距公式，可横向滚动">
+            <math display="block" aria-label="相对泛化差距 gap_ratio 等于 train loss 减 val loss 的绝对值再除以 train loss">
+                <mrow>
+                    <msub><mtext>gap</mtext><mtext>ratio</mtext></msub><mo>=</mo>
+                    <mfrac><mrow><mo>|</mo><msub><mi>L</mi><mtext>train</mtext></msub><mo>−</mo><msub><mi>L</mi><mtext>val</mtext></msub><mo>|</mo></mrow><msub><mi>L</mi><mtext>train</mtext></msub></mfrac>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1：相对泛化差距。用它代替绝对差值，可以在不同 loss 量级的任务之间横向比较；下面的交互诊断器与代码片段都按这个定义计算。</p>
+
         <pre><code>def analyze_curve_status(train_losses, val_losses, window=50):
             """实时分析训练曲线状态"""
             if len(train_losses) < window:
@@ -197,7 +265,24 @@
             else:
                 return f"Train: {train_trend:+.4f}, Val: {val_trend:+.4f}, Gap: {gap_ratio:.1%}"</code></pre>
 
-        <h3>真实踩坑：一条"看起来正常"的曲线</h3>
+        <div class="calc">
+            <label>Δtrain（窗口首末差）<input id="dg-dtr" type="number" value="-0.05" step="0.01"></label>
+            <label>Δval<input id="dg-dva" type="number" value="-0.04" step="0.01"></label>
+            <label>相对 gap<input id="dg-gap" type="number" value="0.02" step="0.01"></label>
+            <label>loss 量级<input id="dg-level" type="number" value="0.05" step="0.1"></label>
+            <button id="dg-calc-btn" type="button">诊断</button>
+        </div>
+        <div class="control-row">
+            <button type="button" data-preset="under">欠拟合</button>
+            <button type="button" data-preset="over">过拟合</button>
+            <button type="button" data-preset="plateau">平台期</button>
+            <button type="button" data-preset="healthy">健康收敛</button>
+            <button type="button" data-preset="diverge">发散/震荡</button>
+        </div>
+        <p class="status" id="dg-status" role="status" aria-live="polite"></p>
+        <p class="note">交互诊断器：输入最近一段窗口内 train/val loss 的首末变化量、相对 gap 与 loss 量级，按与上方代码一致的逻辑给出诊断。也可以点预设按钮一键填入典型形态。</p>
+
+        <h2 id="pitfall">真实踩坑：一条“看起来正常”的曲线</h2>
 
         <p>我的一位朋友曾经在调一个图像分类模型时，遇到了一个非常隐蔽的问题。Train loss稳步下降，val loss也稳步下降，两条曲线几乎重合，走势非常"漂亮"。他心想"这不挺好的么"，然后就把模型部署到了线上——结果线上效果惨不忍睹，AUC比baseline还低5个点。</p>
 
@@ -209,13 +294,48 @@
 
         <p>下一章，我们将讨论一个让每个深度学习工程师都心跳加速的问题——<strong>NaN与梯度爆炸的根因分析</strong>。当你的loss突然变成"nan"，或者缓慢溢出到无穷大，你该怎么办？</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Goodfellow, Bengio &amp; Courville,《Deep Learning》(2016), 第 8 章 Optimization for Training Deep Models。鞍点、平台期与损失曲面地形的基础论述。</li>
+                <li>Goyal et al.,《Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour》(2017), <a href="https://arxiv.org/abs/1706.02677">arXiv:1706.02677</a>。大批量与学习率、训练曲线稳定性的经验关系。</li>
+                <li>Smith,《Cyclical Learning Rates for Training Neural Networks》(2015), <a href="https://arxiv.org/abs/1506.01186">arXiv:1506.01186</a>。用学习率扫描观测 loss 曲面与其他曲线诊断手段。</li>
+                <li>公式 1 与图 1 均为<strong>教学示意</strong>：四联图为典型形状的手绘示意，非真实训练日志；交互诊断器的阈值（平坦、gap 0.05 等）为经验取值。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="14.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="16.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function val(id){ return parseFloat(document.getElementById(id).value); }
+    function setv(id,v){ document.getElementById(id).value=v; }
+    var presets={under:[0,0,0.01,1.5],over:[-0.05,0.03,0.4,0.01],plateau:[0,0,0.02,0.05],healthy:[-0.05,-0.04,0.02,0.05],diverge:[0.2,0.3,0.1,0.5]};
+    function diagnose(){
+        var dtr=val('dg-dtr'), dva=val('dg-dva'), gap=val('dg-gap'), level=val('dg-level'), msg;
+        var flat=Math.abs(dtr)<1e-6 && Math.abs(dva)<1e-6;
+        if(dtr>0 && dva>0) msg='两者都在上升 → 可能学习率过大导致发散：先降 LR、查坏样本、启用梯度裁剪。';
+        else if(dtr<0 && dva>0) msg='训练降、验证升 → 过拟合：优先加数据，再加 dropout/weight decay，最后考虑降容量。';
+        else if(flat && level>0.5) msg='两者都高且停滞 → 欠拟合/容量或学习率问题：先查学习率与代码 bug，再增大模型容量。';
+        else if(flat) msg='两者都低但停滞 → 平台期：先降一个数量级学习率或加 cosine 调度，再考虑增容量/加动量/查数据。';
+        else if(dtr<0 && dva<0 && gap<0.05) msg='两者同步下降且 gap 小 → 训练健康：继续跑，并把注意力转到业务指标。';
+        else if(dtr<0 && dva<0) msg='两者下降但 gap 偏大 → 泛化差距：监控 gap 增长率，必要时加正则化。';
+        else msg='趋势不一致 → 结合震荡幅度与 gap 增长率进一步判断。';
+        document.getElementById('dg-status').textContent='诊断：'+msg;
+    }
+    document.getElementById('dg-calc-btn').addEventListener('click', diagnose);
+    document.querySelectorAll('[data-preset]').forEach(function(b){
+        b.addEventListener('click', function(){ var p=presets[b.getAttribute('data-preset')];
+            setv('dg-dtr',p[0]); setv('dg-dva',p[1]); setv('dg-gap',p[2]); setv('dg-level',p[3]); diagnose(); });
+    });
+    diagnose();
+})();
+</script>
 </body>
 </html>
