@@ -5,11 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第28章 综合实战：从零调优一个模型</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:7.5rem; border:1px solid var(--border); border-radius:.5rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button, .calc button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +71,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html" class="active">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>现在轮到你——从理论到实践的完整闭环</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>现在轮到你——从理论到实践的完整闭环</h1>
+            <p class="dek">把 27 章的方法论串成一个可执行的调参项目：固定种子与实验记录、小数据过拟合测试、LR Range Test、锁定 LR 后顺序调优，以及一张症状诊断决策树。本章不给答案，只给流程。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。到这里，我们已经走过了27章、横跨6个Part的旅程。你学习了调参的方法论、梯度下降的数学、各种优化器的选择、学习率和batch size的调优、初始化技巧、正则化技术、训练曲线解读、NaN排查、小数据测试、各种架构的训练法则、甚至包括Scaling Law这样最前沿的理论。</p>
 
@@ -51,7 +84,7 @@
 
         <p>这一章就是一个端到端的综合实战。我会给出一个完整的调参项目框架——包括任务定义、系统化的调参流程、调参决策树、以及完整的checklist。但有一点需要提前说明：<strong>我不会给你一个"答案"</strong>——不会说"把学习率设成0.001然后batch size设成64就完了"。因为调参不是背答案，而是掌握一套诊断和解决问题的思维方式。</p>
 
-        <h3>实战任务：调优一个图像分类模型</h3>
+        <h2 id="task">实战任务：调优一个图像分类模型</h2>
 
         <p>先来看看我们要完成的任务：</p>
 
@@ -67,9 +100,31 @@
             <strong>任务设计原则：</strong>CIFAR-100 + ResNet-18这个组合的好处是——训练一轮只需要几分钟，单个实验可以在1-2小时内跑完。这样你可以在一两天内跑完完整的调参循环，而不需要等待数天。对于初学者来说，这个反馈速度非常重要。等掌握了方法，再迁移到更大规模的模型和数据集上。
         </div>
 
-        <h3>系统化的调参流程</h3>
+        <h2 id="workflow">系统化的调参流程</h2>
 
         <p>下面是一个经过验证的、系统化的调参流程，共4个阶段：</p>
+
+        <figure id="flow-fig">
+            <svg role="img" aria-labelledby="wf-t wf-d" viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg">
+                <title id="wf-t">四阶段调参流程与反馈回路</title>
+                <desc id="wf-d">四个阶段从左到右：准备与复现、小数据过拟合测试、LR Range Test、锁定 LR 后顺序调优。一条从第四阶段回到第一阶段的反馈弧线表示验证指标未达标时重做调优，强调一次只改一个变量。</desc>
+                <rect width="760" height="300" rx="16" fill="#f3f9f6"/>
+                <text x="24" y="34" font-size="14" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">四阶段调参流程（一次只改一个变量）</text>
+                <g font-family="system-ui,'PingFang SC',sans-serif" text-anchor="middle">
+                    <rect x="15" y="80" width="160" height="76" rx="12" fill="#e2f1ec" stroke="#147f80"/><text x="95" y="108" font-size="13.5" font-weight="600" fill="#164e54">① 准备与复现</text><text x="95" y="130" font-size="12" fill="#53676d">固定 seed / 实验记录</text>
+                    <rect x="205" y="80" width="160" height="76" rx="12" fill="#e2f1ec" stroke="#147f80"/><text x="285" y="108" font-size="13.5" font-weight="600" fill="#164e54">② 小数据过拟合</text><text x="285" y="130" font-size="12" fill="#53676d">32 样本 loss→0</text>
+                    <rect x="395" y="80" width="160" height="76" rx="12" fill="#efeaf9" stroke="#7461ba"/><text x="475" y="108" font-size="13.5" font-weight="600" fill="#4b3f86">③ LR Range Test</text><text x="475" y="130" font-size="12" fill="#53676d">确定初始 LR 区间</text>
+                    <rect x="585" y="80" width="160" height="76" rx="12" fill="#fbe9e0" stroke="#d06d4d"/><text x="665" y="108" font-size="13.5" font-weight="600" fill="#a8482c">④ 锁定顺序调优</text><text x="665" y="130" font-size="12" fill="#53676d">batch→结构→正则</text>
+                </g>
+                <g stroke="#9fb3ad" stroke-width="1.8" fill="none" marker-end="url(#wa)">
+                    <line x1="175" y1="118" x2="203" y2="118"/><line x1="365" y1="118" x2="393" y2="118"/><line x1="555" y1="118" x2="583" y2="118"/>
+                    <path d="M665,156 V230 H95 V158"/>
+                </g>
+                <defs><marker id="wa" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#9fb3ad"/></marker></defs>
+                <text x="380" y="258" font-size="12.5" fill="#53676d" text-anchor="middle" font-family="system-ui,'PingFang SC',sans-serif">验证指标未达标 → 回到④重新顺序调优</text>
+            </svg>
+            <figcaption>图 1（教学示意）：从零调优的四个阶段与反馈回路。② 是“先证明代码正确、再调参”的前提；③ 锁定 LR 区间后才进入 ④，且每次只改一个变量并记录。</figcaption>
+        </figure>
 
         <p><strong>Step 1: 固定随机种子，建立实验记录（30分钟）。</strong></p>
 
@@ -105,6 +160,44 @@ def overfit_small_data(model, dataset, num_samples=32, epochs=200):
 
         <p>执行LR Range Test后，你可能发现最优点在3e-4左右，可接受范围是1e-4到1e-3。<strong>锁定这个范围，接下来所有的调参都在这个LR范围内进行。</strong></p>
 
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="LR Range Test 指数增长公式，可横向滚动">
+            <math display="block" aria-label="LR Range Test 指数增长：第 t 步学习率等于起始学习率乘以终止与起始之比的 t 比 T 次方">
+                <mrow>
+                    <msub><mi>η</mi><mi>t</mi></msub><mo>=</mo>
+                    <msub><mi>η</mi><mtext>start</mtext></msub>
+                    <msup>
+                        <mrow><mo>(</mo><mfrac><msub><mi>η</mi><mtext>end</mtext></msub><msub><mi>η</mi><mtext>start</mtext></msub></mfrac><mo>)</mo></mrow>
+                        <mrow><mi>t</mi><mo>/</mo><mi>T</mi></mrow>
+                    </msup>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1（LR Range Test）：学习率从 η_start 到 η_end 指数增长，t 从 0 到 T。第 t 步的学习率为上式；曲线最低点之前的一个数量级即为候选初始 LR 区间。</p>
+
+        <div class="calc" role="group" aria-label="LR Range Test 学习率计算器">
+            <label>起始 LR
+                <input id="lr-start" type="number" step="0.00001" value="0.00001" inputmode="decimal">
+            </label>
+            <label>终止 LR
+                <input id="lr-end" type="number" step="0.01" value="1" inputmode="decimal">
+            </label>
+            <label>总步数 T
+                <input id="lr-T" type="number" min="1" step="10" value="100" inputmode="numeric">
+            </label>
+            <label>当前步 t
+                <input id="lr-t" type="number" min="0" step="1" value="50" inputmode="numeric">
+            </label>
+            <button id="lr-btn" type="button">计算</button>
+        </div>
+        <div class="control-row" role="group" aria-label="步数预设">
+            <button type="button" data-t="0">t=0（最小）</button>
+            <button type="button" data-t="25">t=25</button>
+            <button type="button" data-t="75">t=75</button>
+            <button type="button" data-t="100">t=100（最大）</button>
+        </div>
+        <p class="status" id="lr-status" role="status" aria-live="polite"></p>
+        <p class="note">交互为教学示意，按公式 1（η_start=1e-5、η_end=1、T=100）计算第 t 步的指数增长学习率，演示 LR Range Test 如何在训练中逐步把 LR 从极小推到较大。</p>
+
         <p><strong>Step 4: 锁定LR顺序调优（剩余时间）。</strong></p>
 
         <p>按照以下优先级顺序，一次只调一个参数：</p>
@@ -119,7 +212,7 @@ def overfit_small_data(model, dataset, num_samples=32, epochs=200):
             <strong>关键提醒：</strong>调参最忌讳的是"多参数同时调"。你改了大模型、改了学习率、还改了数据增强——如果结果变好了，你不知道是哪一个起了作用。如果结果变差了，你更不知道怎么修复。请坚持<strong>一次只改一个变量</strong>的原则，并做好实验记录。
         </div>
 
-        <h3>调参决策树</h3>
+        <h2 id="decision-tree">调参决策树</h2>
 
         <p>实战中你会遇到各种问题。下面是针对常见症状的决策树，帮助你快速定位问题根源：</p>
 
@@ -148,7 +241,7 @@ def overfit_small_data(model, dataset, num_samples=32, epochs=200):
 
         <p>这棵决策树是你解决大部分调参问题的路线图。把它打印出来贴在工位上，或者做成一个cheat sheet放在手边。当模型表现不好时，按树上的路径一步一步排查，而不是凭感觉随机尝试。</p>
 
-        <h3>实战Checklist</h3>
+        <h2 id="checklist">实战Checklist</h2>
 
         <p>最后，这是你每次调参项目都应该过一遍的完整检查清单：</p>
 
@@ -242,7 +335,7 @@ def overfit_small_data(model, dataset, num_samples=32, epochs=200):
             </tbody>
         </table>
 
-        <h3>毕业寄语</h3>
+        <h2 id="farewell">毕业寄语</h2>
 
         <p>到这里，长达28章的深度学习调参课程就全部结束了。</p>
 
@@ -280,13 +373,39 @@ def overfit_small_data(model, dataset, num_samples=32, epochs=200):
 
         <p>下课，<strong>大家加油</strong>。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Smith,《Cyclical Learning Rates for Training Neural Networks》(2017), <a href="https://arxiv.org/abs/1506.01186">arXiv:1506.01186</a>。LR Range Test（公式 1 的指数增长扫描）的原始提出。</li>
+                <li>He et al.,《Deep Residual Learning for Image Recognition》(ResNet, 2015), <a href="https://arxiv.org/abs/1512.03385">arXiv:1512.03385</a>；Krizhevsky,《Learning Multiple Layers of Features from Tiny Images》(CIFAR-10/100 技术报告, 2009)。</li>
+                <li>Zhang et al.,《Understanding deep learning requires rethinking generalization》(2017), <a href="https://arxiv.org/abs/1611.03530">arXiv:1611.03530</a>。小数据可被大网络记忆——小数据过拟合测试的理论依据。</li>
+                <li>Loshchilov &amp; Hutter,《Decoupled Weight Decay Regularization》(AdamW, 2017), <a href="https://arxiv.org/abs/1711.05101">arXiv:1711.05101</a>；Goyal et al.,《Accurate, Large Minibatch SGD》(2017), <a href="https://arxiv.org/abs/1706.02677">arXiv:1706.02677</a>。分别对应权重衰减与线性缩放/warmup。</li>
+                <li>公式 1 与图 1 流程为教学改编；文中 CIFAR-100 的 baseline 72% 与 target 75% 为<strong>教学示意</strong>，具体数值以你自己的实验为准。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="27.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
-            <a href="javascript:void(0)">下一章 →</a>
+            <a href="index.html">回到目录 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function val(id){ return parseFloat(document.getElementById(id).value); }
+    function calc(){
+        var s0=val('lr-start'), s1=val('lr-end'), T=val('lr-T'), t=val('lr-t'), s=document.getElementById('lr-status');
+        if(!(s0>0)||!(s1>0)||!(T>0)){ s.textContent='请输入正的起始/终止 LR 与总步数。'; return; }
+        t=Math.min(T,Math.max(0,t));
+        var lr=s0*Math.pow(s1/s0, t/T);
+        s.textContent='第 '+t+'/'+T+' 步：LR = '+lr.toExponential(3);
+    }
+    document.getElementById('lr-btn').addEventListener('click',calc);
+    document.querySelectorAll('[data-t]').forEach(function(b){ b.addEventListener('click',function(){ document.getElementById('lr-t').value=b.getAttribute('data-t'); calc(); }); });
+    calc();
+})();
+</script>
 </body>
 </html>
