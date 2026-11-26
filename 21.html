@@ -5,11 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第21章 推荐系统的特征与采样</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button, .calc button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +71,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>推荐系统的调参——工业级AI的真正战场</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>推荐系统的调参——工业级 AI 的真正战场</h1>
+            <p class="dek">推荐系统在海量、稀疏、动态的数据上做预测：正样本极稀缺，负样本的选择方式直接决定决策边界。本章讲负采样的 NCE 视角、特征分箱的信息论理由，以及多任务梯度冲突的几何修正。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。今天我们来聊<strong>推荐系统</strong>的调参。如果你觉得调CV或NLP模型已经够复杂了，那推荐系统会给你打开一扇新的大门——在这里，数据泄露、负采样偏差、多任务梯度冲突、特征工程......每一个问题都是工业级的坑。</p>
 
@@ -51,7 +84,7 @@
 
         <p>先讲一个教训。某电商团队在做搜索排序模型时，离线AUC提升了0.7个点，团队挺兴奋。后来线上灰度没动静，甚至部分品类略降。排查后发现验证集是随机切的——同一个用户的连续行为同时出现在训练和验证里，模型学到了用户短期偏好泄漏。重新按时间切分以后，离线提升直接没了一半。这种故事在推荐领域太常见了，以至于wiki里专门强调："推荐系统必须按时间切分训练/验证集，避免同用户连续行为同时出现在两份数据中造成信息泄漏。"</p>
 
-        <h3>负采样为什么有效</h3>
+        <h2 id="negative-sampling">负采样为什么有效</h2>
 
         <p>推荐系统的负采样问题，本质上是一个<strong>Noise Contrastive Estimation（NCE）</strong>问题。NCE的核心思想是：你不需要对所有item算分数来做一个精确的softmax归一化——你只需要学会区分"正样本"和"噪声分布中采样的负样本"。这就把O(|候选集|)的计算量降到了O(负样本数)。</p>
 
@@ -71,7 +104,46 @@
             <strong>关键认知：</strong>"召回需要全局分布，精排需要局部判别。"负采样策略应该随着漏斗向下游移动而从"宽"变为"严"。全链路使用同一套负采样策略是大忌。
         </div>
 
-        <h3>特征分箱的信息论解释</h3>
+        <figure id="neg-fig">
+            <svg role="img" aria-labelledby="nf-t nf-d" viewBox="0 0 760 340" xmlns="http://www.w3.org/2000/svg">
+                <title id="nf-t">推荐漏斗各阶段的负采样策略</title>
+                <desc id="nf-d">三级漏斗：召回阶段候选为全量物料（百万到亿级），用全局随机负采样；粗排阶段候选为召回结果（千到万级），用精排低分物料做负样本；精排阶段候选为粗排结果（百到千级），用曝光未点击样本。负样本分布随漏斗向下游从“宽”变“严”。</desc>
+                <rect width="760" height="340" rx="16" fill="#f3f9f6"/>
+                <text x="24" y="34" font-size="14" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">负样本随漏斗向下游从“宽”变“严”</text>
+                <rect x="120" y="64" width="520" height="62" rx="12" fill="#e2f1ec" stroke="#147f80" stroke-width="1.5"/>
+                <text x="150" y="90" font-size="14" font-weight="600" fill="#164e54" font-family="system-ui,'PingFang SC',sans-serif">召回 · 候选 10⁶~10⁸</text>
+                <text x="150" y="112" font-size="12.5" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">全局随机负采样（宽） + 少量曝光未点击困难样本</text>
+                <rect x="170" y="150" width="420" height="62" rx="12" fill="#efeaf9" stroke="#7461ba" stroke-width="1.5"/>
+                <text x="200" y="176" font-size="14" font-weight="600" fill="#4b3f86" font-family="system-ui,'PingFang SC',sans-serif">粗排 · 候选 10³~10⁴</text>
+                <text x="200" y="198" font-size="12.5" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">精排低分物料做负样本（与粗排判别场景一致）</text>
+                <rect x="220" y="236" width="320" height="62" rx="12" fill="#fbe9e0" stroke="#d06d4d" stroke-width="1.5"/>
+                <text x="250" y="262" font-size="14" font-weight="600" fill="#a8482c" font-family="system-ui,'PingFang SC',sans-serif">精排 · 候选 10²~10³</text>
+                <text x="250" y="284" font-size="12.5" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">曝光未点击样本（严），分布最接近正样本</text>
+                <g stroke="#9fb3ad" stroke-width="1.6" fill="none" marker-end="url(#na)">
+                    <line x1="380" y1="126" x2="380" y2="148"/><line x1="380" y1="212" x2="380" y2="234"/>
+                </g>
+                <defs><marker id="na" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#9fb3ad"/></marker></defs>
+            </svg>
+            <figcaption>图 1（教学示意）：推荐漏斗各阶段候选集规模与推荐的负采样来源。召回需要“全局分布”，精排需要“局部判别”，负样本应从宽到严随漏斗收窄。</figcaption>
+        </figure>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="负采样目标函数，可横向滚动">
+            <math display="block" aria-label="负采样目标：最大化正样本的log-sigmoid 加上 K 个噪声样本的 log-sigmoid 负值之和">
+                <mrow>
+                    <munder><mo>max</mo><mi>θ</mi></munder>
+                    <mrow>
+                        <mi>log</mi><mo>⁡</mo><mi>σ</mi><mo>(</mo><msubsup><mi>u</mi><mi>o</mi><mi>T</mi></msubsup><msub><mi>v</mi><mi>c</mi></msub><mo>)</mo>
+                        <mo>+</mo>
+                        <munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mi>K</mi></munderover>
+                        <msub><mi>𝔼</mi><mrow><msub><mi>w</mi><mi>k</mi></msub><mo>∼</mo><msub><mi>P</mi><mi>n</mi></msub></mrow></msub>
+                        <mi>log</mi><mo>⁡</mo><mi>σ</mi><mo>(</mo><mo>−</mo><msubsup><mi>u</mi><msub><mi>w</mi><mi>k</mi></msub><mi>T</mi></msubsup><msub><mi>v</mi><mi>c</mi></msub><mo>)</mo>
+                    </mrow>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1（负采样 / NCE，Mikolov et al., 2013）：对正样本 (中心词 c、目标词 o) 最大化 log σ，同时对 K 个来自噪声分布 Pₙ 的负样本最大化 log σ(−·)。这里 σ 为 sigmoid，u、v 为输出/输入 Embedding。把“多分类 softmax”换成“二分类判别正负”，计算量从 O(|V|) 降到 O(K)。</p>
+
+        <h2 id="binning">特征分箱的信息论解释</h2>
 
         <p>在推荐系统中，连续特征的处理是一个常被低估但极其重要的环节。wiki里有句直白的话：<strong>"神经网络模型对于连续数值的处理是不如XGBoost的"</strong>。</p>
 
@@ -88,7 +160,22 @@
 
         <p>wiki中的建议很实用："在推荐系统中，神经网络模型对于连续数值的处理是不如xgb的，所以，最好对连续数值分箱，一般等频分箱足矣，但是，个人建议还是观察数据分布，把outlier单独一箱，如果还想完美一点可以用IV值看看分箱的优劣。"</p>
 
-        <h3>多任务学习的梯度冲突</h3>
+        <div class="calc" role="group" aria-label="等频分箱演示">
+            <label>分箱数 K
+                <input id="k-bins" type="number" min="2" max="12" value="5" inputmode="numeric">
+            </label>
+            <button id="bin-btn" type="button">计算等频分箱</button>
+        </div>
+        <div class="control-row" role="group" aria-label="分箱数预设">
+            <button type="button" data-k="3">K = 3</button>
+            <button type="button" data-k="5">K = 5</button>
+            <button type="button" data-k="8">K = 8</button>
+            <button type="button" data-k="12">K = 12</button>
+        </div>
+        <p class="status" id="bin-status" role="status" aria-live="polite"></p>
+        <p class="note">交互为教学示意：对一组固定的示例特征值（n=20，取值已排序）按等频规则切分为 K 个箱，展示每箱的取值区间与样本数。可见等频分箱尽量让每箱样本量相等；若某区间样本极稀，等距分箱反而会产生空箱。</p>
+
+        <h2 id="gradient-conflict">多任务学习的梯度冲突</h2>
 
         <p>推荐系统几乎都是多目标的——同时预测CTR（点击率）、CVR（转化率）、停留时长、点赞概率等等。当这些任务共享底层网络时，一个根本性问题出现了：<strong>不同任务的梯度方向可能冲突</strong>。</p>
 
@@ -111,7 +198,7 @@ for each pair of tasks (i, j):
             <strong>多任务Loss平衡：</strong>"多任务情况下，各loss想法限制在一个量级上，或者最终限制在一个量级上，初期可以着重一个任务的loss。"——初期先让点击率任务收敛，再逐步引入CVR等深层目标。
         </div>
 
-        <h3>推荐系统调参独特性</h3>
+        <h2 id="rec-unique">推荐系统调参独特性</h2>
 
         <p>推荐系统的调参有很多独有的经验法则，和CV/NLP截然不同。以下是几个核心要点：</p>
 
@@ -172,13 +259,46 @@ for each pair of tasks (i, j):
 
         <p>下一章我们将从推荐系统转向一个更普遍的难题——<strong>类别不平衡与长尾分布</strong>。这是一个跨CV、NLP、推荐所有领域的根本性问题。Focal Loss的梯度分析、重采样与重加权的统计偏差、PR曲线与ROC曲线的选择——这些知识你将会在每一类任务中用到。下一章见。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Mikolov et al.,《Distributed Representations of Words and Phrases and their Compositionality》(2013), <a href="https://arxiv.org/abs/1310.4546">arXiv:1310.4546</a>。Negative Sampling（NEG）目标，即公式 1 的来源。</li>
+                <li>Gutmann &amp; Hyvärinen,《Noise-Contrastive Estimation》(2010/2012)。NCE 作为非归一化模型估计方法的理论依据。</li>
+                <li>Cao et al.,《Sampling Matters in Deep Embedding Learning》(2017), <a href="https://arxiv.org/abs/1706.07567">arXiv:1706.07567</a>。负样本分布与采样偏差对度量学习的影响。</li>
+                <li>Cheng et al.,《Wide &amp; Deep Learning for Recommender Systems》(2016), <a href="https://arxiv.org/abs/1606.07792">arXiv:1606.07792</a>。工业推荐系统的特征交叉与 Embedding 实践。</li>
+                <li>Yu et al.,《Gradient Surgery for Multi-Task Learning》(PCGrad, 2020), <a href="https://arxiv.org/abs/2001.06782">arXiv:2001.06782</a>。多任务梯度冲突的投影修正方法。</li>
+                <li>公式 1 为负采样标准目标；图 1、等频分箱交互与漏斗阶段划分均为<strong>教学示意</strong>，示例数值仅用于演示。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="20.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="22.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
+<script>
+(function(){
+    var data=[3,5,5,7,8,9,10,12,12,14,15,16,18,20,22,25,28,32,40,60];
+    function calc(){
+        var k=Math.max(2,Math.min(12,parseInt(document.getElementById('k-bins').value,10)||5));
+        data.sort(function(a,b){return a-b;});
+        var n=data.length, out=[], i;
+        for(i=0;i<k;i++){
+            var lo=Math.floor(i*n/k), hi=Math.floor((i+1)*n/k)-1;
+            out.push('箱'+(i+1)+' ['+data[lo]+','+data[Math.max(lo,hi)]+'] ×'+(hi-lo+1));
+        }
+        document.getElementById('bin-status').textContent=out.join('； ');
+    }
+    document.getElementById('bin-btn').addEventListener('click',calc);
+    document.getElementById('k-bins').addEventListener('change',calc);
+    document.querySelectorAll('[data-k]').forEach(function(b){
+        b.addEventListener('click',function(){ document.getElementById('k-bins').value=b.getAttribute('data-k'); calc(); });
+    });
+    calc();
+})();
+</script>
 </body>
 </html>
