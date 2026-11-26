@@ -5,11 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第19章 CNN训练的核心法则</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button, .calc button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +71,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>CNN——深度学习史上最美丽的"积木"系统</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>CNN——深度学习史上最美丽的“积木”系统</h1>
+            <p class="dek">卷积核大小、感受野、跳跃连接、深度可分离卷积，每个组件都有明确的数学动机与调参原则。本章从 3×3 法则讲起，给出感受野递推公式与一个可交互的堆叠卷积计算器。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。今天我们要聊一个在深度学习调参中分量极重的话题——<strong>CNN（卷积神经网络）</strong>的训练法则。如果说Transformer是深度学习界的瑞士军刀，那CNN就是一座用"积木"搭建的精密建筑。从2012年AlexNet横空出世引爆深度学习革命，到今天几乎所有计算机视觉任务都离不开CNN或其变体，这套"积木系统"已经演化出了一套高度成熟的设计哲学。</p>
 
@@ -51,7 +84,7 @@
 
         <p>我先讲一个故事。2014年，VGG网络在ImageNet比赛中以极其简洁的架构拿下了定位任务第一名。它的"秘密"是什么？就是<strong>全部使用3×3小卷积核</strong>。在VGG之前，AlexNet用了11×11和5×5的大卷积核，当时的主流认知是大卷积核才能捕获大范围特征。VGG团队做了一个在当时看来很"反直觉"的决定：全部用3×3，堆叠更多层。结果呢？参数更少、非线性更多、精度更高。从那时起，3×3卷积成了CNN世界的"默认选项"。</p>
 
-        <h3>3×3卷积法则的由来</h3>
+        <h2 id="kernel">3×3 卷积法则的由来</h2>
 
         <p>为什么两个3×3卷积堆叠能等效一个5×5卷积？我们来看感受野的递推关系。假设输入是某个特征图，经过第一层3×3卷积（stride=1，padding=1），输出特征图上的每个点看到输入图上3×3的区域。再经过第二层3×3卷积，输出点看到的是"第一层输出图上3×3区域"对应的输入图区域——因为第一层每个点已经覆盖了3×3，所以第二层的感受野是3 + (3-1) = 5，正好是5×5。</p>
 
@@ -63,13 +96,46 @@
             <strong>调参要点：</strong>3×3是CNN默认卷积核大小。两个3×3堆叠等效5×5感受野，参数量减少28%且多一层非线性。需要更大感受野时，优先堆叠更多3×3而非增大卷积核。
         </div>
 
-        <h3>感受野：CNN的"视野"</h3>
+        <figure id="kernel-fig">
+            <svg role="img" aria-labelledby="kf-title kf-desc" viewBox="0 0 760 260" xmlns="http://www.w3.org/2000/svg">
+                <title id="kf-title">两个 3×3 堆叠与一个 5×5 的感受野与参数量对比</title>
+                <desc id="kf-desc">左图用两层 3×3 卷积堆叠，末层感受野为 5×5，参数量 18C²；右图用单层 5×5 卷积，感受野同为 5×5，但参数量为 25C²。两者感受野相同，堆叠小卷积核参数更少。</desc>
+                <rect width="760" height="260" rx="16" fill="#f3f9f6"/>
+                <text x="60" y="50" font-size="14" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">2 层 3×3 堆叠</text>
+                <rect x="60" y="80" width="126" height="126" rx="6" fill="#eef6f3" stroke="#9db4ae"/>
+                <rect x="88" y="108" width="70" height="70" rx="4" fill="#147f80" opacity="0.88"/>
+                <circle cx="123" cy="143" r="3" fill="#fff"/>
+                <text x="60" y="228" font-size="12.5" fill="#164e54" font-family="system-ui,'PingFang SC',sans-serif">RF = 5×5，参数 2×(3²C²)=18C²</text>
+                <text x="450" y="50" font-size="14" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">1 层 5×5</text>
+                <rect x="450" y="80" width="126" height="126" rx="6" fill="#eef6f3" stroke="#9db4ae"/>
+                <rect x="478" y="108" width="70" height="70" rx="4" fill="#d06d4d" opacity="0.88"/>
+                <circle cx="513" cy="143" r="3" fill="#fff"/>
+                <text x="450" y="228" font-size="12.5" fill="#a2431f" font-family="system-ui,'PingFang SC',sans-serif">RF = 5×5，参数 5²C²=25C²</text>
+                <text x="610" y="143" font-size="12.5" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">相同感受野</text>
+                <text x="610" y="163" font-size="12.5" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">少 28% 参数</text>
+            </svg>
+            <figcaption>相同感受野下的参数效率对比（为教学示意）：两层 3×3 堆叠的末层感受野为 5×5（递推 3+(3−1)=5），但参数量 18C² 小于单层 5×5 的 25C²，且两层之间多了一个 ReLU 非线性。这就是 VGG 之后主流 CNN 全部采用小卷积核堆叠的原因。</figcaption>
+        </figure>
+
+        <h2 id="rf">感受野：CNN 的“视野”</h2>
 
         <p>感受野（Receptive Field, RF）是CNN中最容易被忽视但又极其重要的概念。它定义了一个特征图上的像素点对应到原始输入图像上的区域大小。你可以把它理解为每一层卷积层的"视野范围"。</p>
 
         <p>感受野的计算遵循一个非常简洁的递推公式：</p>
 
         <pre><code>RF_l = RF_{l-1} + (kernel_size_l - 1) × stride_accum_{l-1}</code></pre>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="感受野递推公式，可横向滚动">
+            <math display="block" aria-label="感受野递推：第 l 层的感受野等于上一层感受野加上左括号核大小减 1 右括号乘以之前所有层步长的连乘积">
+                <mrow>
+                    <msub><mtext>RF</mtext><mi>l</mi></msub><mo>=</mo>
+                    <msub><mtext>RF</mtext><mrow><mi>l</mi><mo>−</mo><mn>1</mn></mrow></msub><mo>+</mo>
+                    <mrow><mo>(</mo><msub><mi>k</mi><mi>l</mi></msub><mo>−</mo><mn>1</mn><mo>)</mo></mrow><mo>·</mo>
+                    <munderover><mo>∏</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>l</mi><mo>−</mo><mn>1</mn></mrow></munderover><msub><mi>s</mi><mi>i</mi></msub>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1（感受野递推）：<code>k_l</code> 是第 l 层核大小，<code>s_i</code> 是第 i 层步长。乘积项说明步长对感受野的影响是<strong>乘积性</strong>的——前几层的 stride=2 会让后续每层的感受野扩张成倍加速。</p>
 
         <p>其中stride_accum_{l-1}是前面所有层步长的乘积。这个公式揭示了一个关键事实：<strong>步长对感受野的影响是乘积性的</strong>。如果前两层各有stride=2，那第三层的步长贡献会被放大4倍。这就是为什么下采样操作会急剧加速感受野的扩张——pooling和stride=2的卷积不仅仅降低分辨率，它们让后续每层都能"看到"更大的区域。</p>
 
@@ -84,7 +150,21 @@
 
         <p><strong>空洞卷积（Dilated Convolution）</strong>是个巧妙的设计：在不增加参数的情况下扩大感受野。3×3卷积在rate=2时有效核大小为5，但只有9个非零参数。感受野从3×3跳到了5×5，参数完全不变。调参时要特别注意：计算空洞卷积的感受野时必须使用有效核大小 k + (k-1)(rate-1)，而不是原始核大小。</p>
 
-        <h3>跳跃连接为何有效</h3>
+        <div class="calc">
+            <label>每层核大小 k<input id="rf-k" type="number" value="3" step="1" min="1"></label>
+            <label>层数 n<input id="rf-n" type="number" value="2" step="1" min="1"></label>
+            <label>每层 stride s<input id="rf-s" type="number" value="1" step="1" min="1"></label>
+            <button id="rf-calc-btn" type="button">计算感受野</button>
+        </div>
+        <div class="control-row">
+            <button type="button" data-rf="2">2 层 3×3</button>
+            <button type="button" data-rf="3">3 层 3×3</button>
+            <button type="button" data-rf="stride">3 层 stride=2</button>
+        </div>
+        <p class="status" id="rf-status" role="status" aria-live="polite"></p>
+        <p class="note">交互计算器：按公式 1 递推 n 层相同配置卷积后的感受野（RF 从 1 开始），并与一个“等效大核”对比参数量（每通道）。点预设按钮查看堆叠层数与下采样对感受野的影响。</p>
+
+        <h2 id="residual">跳跃连接为何有效</h2>
 
         <p>残差连接（Residual Connection）可能是深度学习史上最重要的架构创新。它的形式简单得不可思议：<code>y = F(x) + x</code>。但就是这一个小小的加法，让深度学习从"20层封顶"跨越到了"1000层可训"的时代。</p>
 
@@ -98,7 +178,7 @@
             <strong>ResNet vs DenseNet选型：</strong>ResNet求和处理，参数效率较低，但显存占用少、训练稳定，是通用backbone的首选。DenseNet拼接处理，参数效率高、适合小数据场景，但显存占用高、增长率需精细调节。
         </div>
 
-        <h3>深度可分离卷积的计算量分析</h3>
+        <h2 id="sepconv">深度可分离卷积的计算量分析</h2>
 
         <p>深度可分离卷积（Depthwise Separable Convolution）是轻量级CNN的核心。它将标准卷积分解为两个独立步骤：<strong>深度卷积</strong>（Depthwise Conv）——每个通道独立用一个卷积核做空间滤波；<strong>逐点卷积</strong>（Pointwise Conv）——用1×1卷积做通道混合。</p>
 
@@ -121,7 +201,7 @@
             <strong>硬件注意：</strong>深度可分离卷积的理论FLOPs不等于实际加速。深度卷积的计算密度低、访存高，在未优化的硬件上实际加速可能只有2-3倍而非理论上的8倍。部署前务必做profiling。
         </div>
 
-        <h3>CNN调参速查</h3>
+        <h2 id="cheatsheet">CNN 调参速查</h2>
 
         <p>最后，我们总结一组CNN调参的核心速查点，让你在拿到一个CV任务时能快速找到起点：</p>
 
@@ -182,13 +262,49 @@
 
         <p>好了，以上就是CNN训练的核心法则。下一章我们将从计算机视觉转向自然语言处理，聊聊<strong>NLP模型微调的原理</strong>——为什么BERT类模型需要1e-5级别的学习率？什么是subword tokenization的核心统计原理？对抗训练为什么是NLP的"免费午餐"？我们下一章见。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Simonyan &amp; Zisserman,《Very Deep Convolutional Networks for Large-Scale Image Recognition》(VGG, 2014), <a href="https://arxiv.org/abs/1409.1556">arXiv:1409.1556</a>。全部使用 3×3 小卷积核堆叠的设计。</li>
+                <li>He et al.,《Deep Residual Learning for Image Recognition》(ResNet, 2015), <a href="https://arxiv.org/abs/1512.03385">arXiv:1512.03385</a>。残差连接与退化问题；ResNet-152 top-5 错误率 3.57%。</li>
+                <li>Huang et al.,《Densely Connected Convolutional Networks》(DenseNet, 2016), <a href="https://arxiv.org/abs/1608.06993">arXiv:1608.06993</a>。密集连接与特征复用。</li>
+                <li>Sandler et al.,《MobileNetV2: Inverted Residuals and Linear Bottlenecks》(2018), <a href="https://arxiv.org/abs/1801.04381">arXiv:1801.04381</a>。深度可分离卷积与倒残差结构。</li>
+                <li>Chen et al.,《DeepLab: Semantic Image Segmentation with Deep Convolutional Nets, Atrous Convolution, and Fully Connected CRFs》(2016), <a href="https://arxiv.org/abs/1606.00915">arXiv:1606.00915</a>。空洞卷积与 ASPP。</li>
+                <li>公式 1 为感受野递推定义；图 1 与交互计算器为<strong>教学示意</strong>，参数量比值按每通道估算，未计入 bias。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="18.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="20.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function val(id){ return parseFloat(document.getElementById(id).value); }
+    function setv(id,v){ document.getElementById(id).value=v; }
+    function calc(){
+        var k=Math.max(1,Math.round(val('rf-k'))), n=Math.max(1,Math.round(val('rf-n'))), s=Math.max(1,Math.round(val('rf-s')));
+        var RF=1, acc=1, i;
+        for(i=0;i<n;i++){ RF += (k-1)*acc; acc*=s; }
+        var small=n*k*k, big=RF*RF;
+        document.getElementById('rf-status').textContent='堆叠 '+n+' 层 '+k+'×'+k+'（stride '+s+'）→ 感受野 ≈ '+RF+'×'+RF+'；小核参数量 '+small+' vs 等效大核 '+big+'（每通道，比值 '+(small/big).toFixed(2)+'）。';
+    }
+    document.getElementById('rf-calc-btn').addEventListener('click', calc);
+    document.querySelectorAll('[data-rf]').forEach(function(b){
+        b.addEventListener('click', function(){
+            var m=b.getAttribute('data-rf');
+            setv('rf-k',3);
+            if(m==='stride'){ setv('rf-n',3); setv('rf-s',2); }
+            else { setv('rf-n',parseInt(m,10)); setv('rf-s',1); }
+            calc();
+        });
+    });
+    calc();
+})();
+</script>
 </body>
 </html>
