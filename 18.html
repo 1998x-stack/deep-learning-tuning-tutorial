@@ -5,11 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第18章 调参优先级与方法论</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button, .calc button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +71,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>调参不是玄学，是一套可以学会的方法论</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>调参不是玄学，是一套可以学会的方法论</h1>
+            <p class="dek">超参数并不平等：LR 改变优化轨迹的根本方向，正则化只是在已定的曲面上微调。本章给出超参数重要性分层、网格/随机/贝叶斯搜索的取舍、线性缩放规则与一套可直接套用的五步工作流。</p>
+        </header>
 
         <p>我见过太多同学调参的模式是这样的：拿到一个新任务，先试几个"感觉不错"的参数——学习率3e-4（因为上一篇论文用的这个）、batch size 64（因为显存只够这个数）、dropout设成0.5（因为听说这个值最常用）、weight decay设成1e-4（因为好像大家都这么设）。跑完一轮，效果不理想，于是开始随机乱试——学习率改成1e-3试试？加到5e-4看看？batch size提到128？降回32？做了十几组实验，没有系统记录，全凭感觉——"诶上次好像有个组合效果不错来着？"</p>
 
@@ -51,7 +84,7 @@
 
         <p>真正的调参方法论，是以理解每个超参数对优化过程的影响机制为前提，按照科学的优先级和策略系统性地搜索超参数空间。你不是在"碰运气"，你是在画一张超参数-效果的地图，然后沿着地图上的等高线逐渐走向高峰。</p>
 
-        <h3>超参数重要性排序</h3>
+        <h2 id="priority">超参数重要性排序</h2>
 
         <p>超参数不是平等的。有些超参数改变了优化轨迹的根本方向——我称之为<strong>"一阶效应"</strong>参数；有些参数只是在已有的损失曲面上做微调——我称之为<strong>"二阶效应"</strong>参数。把这两类混为一谈，是调参效率低下的根本原因。</p>
 
@@ -60,6 +93,30 @@
         <p><strong>第一优先级：学习率（LR）。</strong>没有"之一"——学习率就是最重要的超参数。它的影响是决定性的：LR太小，模型永远无法收敛；LR太大，loss直接发散为NaN。知乎上几乎每一位有经验的答主都把LR放在第一位反复强调："优先调learning rate！优先调learning rate！优先调learning rate！"</p>
 
         <p><strong>第二优先级：Batch Size。</strong>Batch size决定了梯度估计的精度和方差。它直接影响每条训练数据的"权重"——batch越小时，每条数据的梯度占比越大，训练噪声越大。Batch size和LR之间存在线性缩放关系：batch size放大n倍，LR通常可以对应放大n倍左右。这意味着LR和batch size是耦合的——你改了batch size但不改LR，相当于无意中改变了实际学习率。</p>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="批大小与学习率线性缩放规则，可横向滚动">
+            <math display="block" aria-label="线性缩放规则：新学习率等于基准学习率乘以新批大小与基准批大小的比值">
+                <mrow>
+                    <msub><mi>η</mi><mtext>new</mtext></msub><mo>=</mo>
+                    <msub><mi>η</mi><mtext>base</mtext></msub><mo>·</mo>
+                    <mfrac><msub><mi>B</mi><mtext>new</mtext></msub><msub><mi>B</mi><mtext>base</mtext></msub></mfrac>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1（线性缩放规则，Goyal et al. 2017）：批大小放大 n 倍时，学习率对应放大 n 倍以保持每条样本的更新步长不变。实践中常用更保守的平方根缩放 η ∝ √B。</p>
+
+        <div class="calc">
+            <label>基准 LR<input id="sc-lr" type="number" value="0.0003" step="0.0001" min="0"></label>
+            <label>基准 batch<input id="sc-b0" type="number" value="64" step="1" min="1"></label>
+            <label>新 batch<input id="sc-b1" type="number" value="256" step="1" min="1"></label>
+            <button id="sc-calc-btn" type="button">计算</button>
+        </div>
+        <div class="control-row">
+            <button type="button" data-rule="linear">线性缩放 η ∝ B</button>
+            <button type="button" data-rule="sqrt">平方根缩放 η ∝ √B</button>
+        </div>
+        <p class="status" id="sc-status" role="status" aria-live="polite"></p>
+        <p class="note">交互计算器：当你把 batch 从基准值放大到新值时，给出按线性或平方根规则应同步调整的 LR。它解释了为什么“改了 batch 却不改 LR”会无意中改变实际学习率。</p>
 
         <p><strong>第三优先级：模型结构（宽度/深度）。</strong>模型的容量决定了它可以学到多复杂的函数。容量不够→欠拟合，容量太大→过拟合。但容量问题通常可以在小数据过拟合测试中被暴露——如果小数据能过拟合，容量是够的；如果小数据都不能过拟合，说明在达到容量极限之前就已经出了问题。</p>
 
@@ -70,7 +127,26 @@
             "先锁定LR，再调batch size，然后调模型结构，最后正则化精调。不要跳级，不要同时调超过两个参数。"
         </div>
 
-        <h3>网格搜索 vs 随机搜索</h3>
+        <figure id="priority-fig">
+            <svg role="img" aria-labelledby="pf-title pf-desc" viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg">
+                <title id="pf-title">超参数重要性分层</title>
+                <desc id="pf-desc">四层阶梯图：第一层学习率（决定性，决定优化轨迹方向）；第二层批大小（决定梯度方差，与学习率耦合）；第三层模型结构宽/深（决定容量）；第四层正则化系数（泛化微调）。越往下影响幅度越小。</desc>
+                <rect width="760" height="300" rx="16" fill="#f3f9f6"/>
+                <text x="24" y="30" font-size="14" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">影响幅度自上而下递减</text>
+                <path d="M50 54 L50 246" stroke="#9db4ae" stroke-width="1.5"/><path d="M44 238 L50 248 L56 238" fill="#9db4ae"/>
+                <rect x="80" y="52" width="600" height="42" rx="8" fill="#0f5c5c"/>
+                <text x="380" y="79" text-anchor="middle" font-size="13.5" fill="#fff" font-weight="600" font-family="system-ui,'PingFang SC',sans-serif">① 学习率 LR —— 决定优化轨迹方向</text>
+                <rect x="140" y="104" width="480" height="42" rx="8" fill="#147f80"/>
+                <text x="380" y="131" text-anchor="middle" font-size="13.5" fill="#fff" font-family="system-ui,'PingFang SC',sans-serif">② 批大小 —— 梯度方差（与 LR 耦合）</text>
+                <rect x="200" y="156" width="360" height="42" rx="8" fill="#4aa39a"/>
+                <text x="380" y="183" text-anchor="middle" font-size="13.5" fill="#fff" font-family="system-ui,'PingFang SC',sans-serif">③ 模型结构（宽/深）—— 容量</text>
+                <rect x="260" y="208" width="240" height="42" rx="8" fill="#a9d3cd"/>
+                <text x="380" y="235" text-anchor="middle" font-size="13.5" fill="#0b2b2b" font-family="system-ui,'PingFang SC',sans-serif">④ 正则化系数 —— 泛化微调</text>
+            </svg>
+            <figcaption>超参数重要性分层（为教学示意）：越靠上的参数对优化轨迹影响越大。所谓“一阶效应”指 LR/批大小/结构这类改变训练轨迹方向的参数（①②③），“二阶效应”指正则化系数这类在既定曲面上微调的参数（④）。先锁定上方参数，再向下精调。</figcaption>
+        </figure>
+
+        <h2 id="grid-random">网格搜索 vs 随机搜索</h2>
 
         <p>假设你确定了需要调的参数范围——是时候回答一个经典问题了：如何高效地搜索超参数空间？</p>
 
@@ -84,7 +160,7 @@
 
         <p>科学的做法是<strong>"由粗到细"的搜索策略</strong>：第一轮用随机搜索在大范围内粗采（20-50次），找到参数的大致有效区间；第二轮在好区间的缩小范围内再用随机搜索或贝叶斯优化精搜（20-30次）；第三轮如果预算充足，在精搜得到的最优参数附近做小范围扰动验证稳定性。</p>
 
-        <h3>贝叶斯优化的原理</h3>
+        <h2 id="bayes">贝叶斯优化的原理</h2>
 
         <p>如果你厌倦了随机搜索"蒙十组看哪个好"的方式，贝叶斯优化（Bayesian Optimization）是一个更聪明的方案。它的核心思想是：<strong>不要浪费你已经跑过的实验信息</strong>。</p>
 
@@ -106,7 +182,7 @@
             贝叶斯适合场景：每次实验代价高（训练一个模型要几小时），想尽可能从已有实验中学习。
         </div>
 
-        <h3>实用调参工作流</h3>
+        <h2 id="workflow">实用调参工作流</h2>
 
         <p>讲了这么多理论和策略，最后给你一个可以在下次调参时直接拿着用的<strong>五步工作流</strong>：</p>
 
@@ -170,7 +246,7 @@
         # config = create_experiment_config(lr=1e-4)  # 只改LR
         # config = create_experiment_config(batch_size=128)  # 只改batch size</code></pre>
 
-        <h3>调参方法对比</h3>
+        <h2 id="compare">调参方法对比</h2>
 
         <table>
             <thead>
@@ -225,13 +301,41 @@
 
         <p>从下一章开始，我们将进入Part 5——具体场景的调参实战。第19章将讨论<strong>CNN训练的核心法则</strong>，看看在计算机视觉这个经典领域里，有哪些特有的调参规律和技巧。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Goyal et al.,《Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour》(2017), <a href="https://arxiv.org/abs/1706.02677">arXiv:1706.02677</a>。公式 1 的线性缩放规则与 warmup 均出自此文。</li>
+                <li>Bergstra &amp; Bengio,《Random Search for Hyper-Parameter Optimization》(2012), <a href="https://www.jmlr.org/papers/v13/bergstra12a.html">JMLR 13:281</a>。高维空间中随机搜索优于网格搜索的论证。</li>
+                <li>Snoek, Larochelle &amp; Adams,《Practical Bayesian Optimization of Machine Learning Algorithms》(2012), <a href="https://arxiv.org/abs/1206.2944">arXiv:1206.2944</a>。高斯过程 + 期望改进（EI）采集函数。</li>
+                <li>Li et al.,《Hyperband: A Novel Bandit-Based Approach to Hyperparameter Optimization》(2018), <a href="https://arxiv.org/abs/1603.06560">arXiv:1603.06560</a>。逐次减半的早停式搜索。</li>
+                <li>图 1 的分层与公式 1 的平方根变体为<strong>教学示意</strong>；重要性排序与缩放比例均为工程经验取值，实际以任务验证为准。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="17.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="19.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function val(id){ return parseFloat(document.getElementById(id).value); }
+    var rule='linear';
+    function calc(){
+        var lr=val('sc-lr'), b0=val('sc-b0'), b1=val('sc-b1'), s=document.getElementById('sc-status');
+        if(!(lr>0)||!(b0>0)||!(b1>0)){ s.textContent='请输入正的学习率与批大小。'; return; }
+        var ratio=b1/b0, k=(rule==='sqrt')? Math.sqrt(ratio) : ratio;
+        s.textContent='新 batch = '+b1+'（×'+ratio.toFixed(2)+'），按'+(rule==='sqrt'?'平方根':'线性')+'缩放 → 建议 LR ≈ '+(lr*k).toExponential(3)+'。';
+    }
+    document.getElementById('sc-calc-btn').addEventListener('click', calc);
+    document.querySelectorAll('[data-rule]').forEach(function(b){
+        b.addEventListener('click', function(){ rule=b.getAttribute('data-rule'); calc(); });
+    });
+    calc();
+})();
+</script>
 </body>
 </html>
