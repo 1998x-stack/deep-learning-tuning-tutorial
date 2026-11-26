@@ -5,11 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第27章 自动化调参与前沿趋势</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:7.5rem; border:1px solid var(--border); border-radius:.5rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button, .calc button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +71,12 @@
             <li><a href="27.html" class="active">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>调参的未来——从手工到自动，从经验到理论</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>调参的未来——从手工到自动，从经验到理论</h1>
+            <p class="dek">调参正在从“搜索”走向“推导”：从梯度的自相关结构解析最优动量，用 SAM 寻找平坦极小值，让大模型（PSO+LLM）当调参助手。本章速览 2025–2026 的方法论前沿。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。上一章我们讲了超参数随模型规模的缩放规律——那是理论层面的突破。但你可能在想："这些规律都很美，可我的模型也就几千万参数，Scaling Law离我是不是太远了？"</p>
 
@@ -51,7 +84,7 @@
 
         <p>过去五年，我们见证了超参数搜索从手动尝试→Grid Search→Random Search→Bayesian Optimization→Population Based Training的演进路径。但2025-2026年，一批全新的方法正在改变游戏规则——它们不再是"搜索"超参数空间，而是从理论上<strong>推导</strong>出最优超参数，或者让模型自己<strong>调整</strong>自己的优化过程。</p>
 
-        <h3>贪心对齐优化器选择（2025-2026）</h3>
+        <h2 id="greedy-align">贪心对齐优化器选择（2025-2026）</h2>
 
         <p>先来聊一个最让人头疼的问题：<strong>动量参数β到底设多少？</strong>Adam的momentum decay（β₁）通常设为0.9，但你真的确定这是对于你的模型、你的数据集的最优值吗？也许0.95更好？0.85呢？传统方法只能靠grid search去试，但2025年出现了一种全新的思路——<strong>贪心对齐优化器选择</strong>。</p>
 
@@ -73,11 +106,22 @@ R 是梯度自相关函数（从历史梯度序列估计）
 
         <p>这个方法的更深层意义在于：它把调参从"猜测+验证"变成了"测量+计算"。不再需要在超参数空间里盲目搜索——梯度信号本身就告诉你了优化器应该怎么配置。</p>
 
-        <h3>Sharpness-Aware Minimization（SAM）</h3>
+        <h2 id="sam">Sharpness-Aware Minimization（SAM）</h2>
 
         <p>你注意过没有？有些模型在训练集上的loss降得很低，但测试集效果很差；而另一些模型训练loss虽然稍高，但测试效果却更好。区别在哪里？一个关键因素是<strong>loss landscape的"尖锐度"</strong>（sharpness）。</p>
 
         <p><strong>Sharpness-Aware Minimization（SAM）</strong>的核心思想非常直观：不要只找一个loss低的点，要找一个<strong>loss低且周围区域都低</strong>的点——也就是平坦极小值（flat minima）。Flat minima天然具有更好的泛化性能，因为参数空间中的平坦区域对扰动（比如测试集与训练集的分布偏移）更鲁棒。</p>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="SAM 目标函数定义式，可横向滚动">
+            <math display="block" aria-label="SAM 目标：外层对 w 最小化，内层在半径 rho 的邻域内对 epsilon 取最大损失">
+                <mrow>
+                    <munder><mo>min</mo><mi>w</mi></munder>
+                    <munder><mo>max</mo><mrow><mo>‖</mo><mi>ε</mi><mo>‖</mo><mo>≤</mo><mi>ρ</mi></mrow></munder>
+                    <mi>L</mi><mo>(</mo><mi>w</mi><mo>+</mo><mi>ε</mi><mo>)</mo>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1（SAM 目标，Foret et al. 2021）：外层对参数 w 最小化，内层在半径 ρ 的球内对扰动 ε 最大化损失（取最坏点）。内层的一阶近似解为 epsilon* = ρ ∇L(w)/‖∇L(w)‖，即把归一化梯度乘上半径 ρ，对应图 1 的第一步。</p>
 
         <p>SAM的实现分两步：</p>
 
@@ -85,6 +129,33 @@ R 是梯度自相关函数（从历史梯度序列估计）
             <li><strong>第一步：寻找邻域内的最坏点。</strong>在当前参数w附近，找到一个小的扰动ε，使得loss(w+ε)最大。这个ε的方向就是loss上升最快的方向——本质上就是梯度方向归一化后乘以半径ρ。</li>
             <li><strong>第二步：用该点的梯度更新参数。</strong>计算loss(w+ε)的梯度，用这个梯度更新w。这样做的效果是：把w推向一个邻域内loss都比较低的区域。</li>
         </ul>
+
+        <figure id="sam-fig">
+            <svg role="img" aria-labelledby="sm-t sm-d" viewBox="0 0 760 340" xmlns="http://www.w3.org/2000/svg">
+                <title id="sm-t">SAM 的两步：先扰动到邻域最坏点，再用该点梯度更新</title>
+                <desc id="sm-d">一条平滑的损失曲线，最低点在中间。当前参数 w 位于右侧斜坡，以 w 为圆心画出一个半径为 rho 的虚线小球。第一步沿梯度方向走到球内损失最高的点 w+epsilon；第二步用 w+epsilon 处的梯度把参数推向更平坦、损失更低的区域。</desc>
+                <rect width="760" height="340" rx="16" fill="#f3f9f6"/>
+                <text x="24" y="34" font-size="14" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">SAM：先爬到邻域最高点，再向低处走一步</text>
+                <path d="M60,105 Q220,150 380,270 Q540,150 700,105" fill="none" stroke="#9fb3ad" stroke-width="2.4"/>
+                <text x="60" y="300" font-size="12.5" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">参数空间 w</text>
+                <text x="16" y="60" font-size="12.5" fill="#53676d" font-family="system-ui,'PingFang SC',sans-serif">loss</text>
+                <circle cx="540" cy="169" r="30" fill="none" stroke="#147f80" stroke-width="1.6" stroke-dasharray="5 4"/>
+                <text x="556" y="206" font-size="12" fill="#164e54" font-family="system-ui,'PingFang SC',sans-serif">半径 rho</text>
+                <circle cx="540" cy="169" r="5" fill="#147f80"/>
+                <text x="470" y="160" font-size="12.5" fill="#164e54" text-anchor="end" font-family="system-ui,'PingFang SC',sans-serif">w（当前）</text>
+                <circle cx="566" cy="156" r="5" fill="#d06d4d"/>
+                <text x="582" y="150" font-size="12.5" fill="#a8482c" font-family="system-ui,'PingFang SC',sans-serif">w+epsilon（最坏点）</text>
+                <circle cx="500" cy="190" r="5" fill="#7461ba"/>
+                <text x="430" y="200" font-size="12.5" fill="#4b3f86" text-anchor="end" font-family="system-ui,'PingFang SC',sans-serif">更新后（更平坦）</text>
+                <g fill="none" stroke-width="2.2" marker-end="url(#sa)">
+                    <line x1="540" y1="169" x2="560" y2="158" stroke="#d06d4d"/>
+                    <line x1="566" y1="156" x2="506" y2="187" stroke="#7461ba"/>
+                </g>
+                <defs><marker id="sa" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#7461ba"/></marker></defs>
+                <text x="600" y="176" font-size="12" fill="#a8482c" font-family="system-ui,'PingFang SC',sans-serif">epsilon = rho·g/‖g‖</text>
+            </svg>
+            <figcaption>图 1（教学示意）：SAM 的两步几何。第一步在当前参数 w 的 rho 邻域内沿归一的梯度方向攀升到最坏点 w+epsilon；第二步用 w+epsilon 处的梯度更新 w，把参数推向邻域内都较低、更平坦的区域，从而改善泛化。</figcaption>
+        </figure>
 
         <p>下面是一个SAM的简洁实现：</p>
 
@@ -141,7 +212,7 @@ for inputs, labels in dataloader:
             <strong>SAM的最佳实践：</strong>SAM最适合用在泛化瓶颈的场景——比如微调预训练模型、小样本学习、或者数据量有限的任务。rho（扰动半径）是SAM唯一的超参数，通常取0.01-0.1之间。rho过大会导致训练不稳定，rho过小则退化为标准SGD。建议从rho=0.05开始，观察验证loss的平坦程度来微调。
         </div>
 
-        <h3>大模型作为调参助手</h3>
+        <h2 id="llm-assistant">大模型作为调参助手</h2>
 
         <p>一个很有趣的趋势是：<strong>大模型正在被用来调优小模型（以及它们自己的推理参数）</strong>。这听起来有点递归，但在2025-2026年已经成为的研究热点。核心思路是用PSO（粒子群优化）结合LLM评估来迭代优化超参数。</p>
 
@@ -153,13 +224,39 @@ for inputs, labels in dataloader:
             <li><strong>更新最优并迭代：</strong>将LLM评估结果转化为评分，更新粒子的个体最优和全局最优，继续迭代直到收敛。</li>
         </ul>
 
+        <div class="calc" role="group" aria-label="PSO 单步更新计算器">
+            <label>惯性 w
+                <input id="pso-w" type="number" min="0" max="1" step="0.05" value="0.7" inputmode="decimal">
+            </label>
+            <label>位置 x
+                <input id="pso-x" type="number" step="0.1" value="4" inputmode="decimal">
+            </label>
+            <label>速度 v
+                <input id="pso-v" type="number" step="0.1" value="0" inputmode="decimal">
+            </label>
+            <label>个体最优 p
+                <input id="pso-p" type="number" step="0.1" value="2" inputmode="decimal">
+            </label>
+            <label>全局最优 g
+                <input id="pso-g" type="number" step="0.1" value="-1" inputmode="decimal">
+            </label>
+            <button id="pso-btn" type="button">更新一步</button>
+        </div>
+        <div class="control-row" role="group" aria-label="粒子初值预设">
+            <button type="button" data-x="4" data-v="0">x=4, v=0</button>
+            <button type="button" data-x="4" data-v="1">x=4, v=1</button>
+            <button type="button" data-x="4" data-v="-1">x=4, v=-1</button>
+        </div>
+        <p class="status" id="pso-status" role="status" aria-live="polite"></p>
+        <p class="note">交互为教学示意，按 PSO 速度更新式 v ← w·v + c1·r1·(p−x) + c2·r2·(g−x) 计算一步，取 c1=c2=1.5、r1=r2=0.5（一维简化）。它演示了粒子如何被“个体最优”与“全局最优”共同拉向更优区域。</p>
+
         <p>这个框架在<strong>推理参数优化</strong>场景中特别有效——比如调整LLM推理时的temperature、chunk_size、top_p等参数。这些参数对生成质量有显著影响，但很难用单一的自动指标（如perplexity）来评估。让LLM自己评估输出质量，形成一个闭环优化系统。</p>
 
         <div class="tip">
             <strong>在商业化API中的体现：</strong>2025-2026年，主流LLM平台（如OpenAI、Anthropic、Google）纷纷推出了"自动提示词优化"和"推理参数自动调优"功能。背后就是类似PSO+LLM评估的机制。你只需要提供任务描述和几个示例，系统会自动搜索最优的temperature、top_p等参数——这就是"大模型作为调参助手"的产品化体现。
         </div>
 
-        <h3>2025-2026研究前沿速览</h3>
+        <h2 id="frontier">2025-2026研究前沿速览</h2>
 
         <p>除了上面详细讲的三个方向，还有几个值得关注的前沿技术：</p>
 
@@ -220,7 +317,7 @@ for inputs, labels in dataloader:
             </tbody>
         </table>
 
-        <h3>从理论到实践：最后一章预告</h3>
+        <h2 id="preview">从理论到实践：最后一章预告</h2>
 
         <p>回顾一下这个Part 6的旅程：第25章我们讲了RLHF对齐训练的底层逻辑——那是前沿的应用方向。第26章我们讲了Scaling Law和μP——那是调参的理论基础。这一章我们讲了自动化调参和前沿技术——那是工具和方法的进化。</p>
 
@@ -228,13 +325,41 @@ for inputs, labels in dataloader:
 
         <p>最后一章，我们要把这些全部串起来。<strong>第28章：综合实战——从零调优一个模型</strong>。我会带你走一遍完整的调参流程——从数据准备、模型选择、LR扫描、参数微调，到最终评估和部署。你将看到一个真实的、端到端的调参项目是怎么跑的。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Foret et al.,《Sharpness-Aware Minimization for Efficiently Improving Generalization》(2020/2021), <a href="https://arxiv.org/abs/2010.01412">arXiv:2010.01412</a>。SAM 目标（公式 1）、两层更新与 ImageNet 实验。</li>
+                <li>Kwon et al.,《ASAM: Adaptive Sharpness-Aware Minimization》(2021), <a href="https://arxiv.org/abs/2102.11600">arXiv:2102.11600</a>。对 SAM 尺度不变性的改进。</li>
+                <li>Smith et al.,《Don't Decay the Learning Rate, Increase the Batch Size》(2017/2018), <a href="https://arxiv.org/abs/1711.00489">arXiv:1711.00489</a>。增大 batch size 可以替代学习率衰减——批量大小调度器的理论依据。</li>
+                <li>Yang et al.,《Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer》(μP, 2021), <a href="https://arxiv.org/abs/2203.03466">arXiv:2203.03466</a>；Complete(d)P 统一缩放思想由此延伸。</li>
+                <li>Kennedy &amp; Eberhart,《Particle Swarm Optimization》(1995), <a href="https://doi.org/10.1109/ICNN.1995.488968">IEEE ICNN</a>。粒子群优化的原始算法，即交互计算器所演示的速度更新式。</li>
+                <li>公式 1 与图 1 为 SAM 标准定义与几何示意；表格中的成熟度标注与“贪心对齐优化器选择”等极其新的方向属研究阶段，具体数值以各原始论文为准。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="26.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="28.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function val(id){ return parseFloat(document.getElementById(id).value); }
+    function calc(){
+        var w=val('pso-w'), x=val('pso-x'), v=val('pso-v'), p=val('pso-p'), g=val('pso-g'), s=document.getElementById('pso-status');
+        if([w,x,v,p,g].some(function(z){ return !isFinite(z); })){ s.textContent='请输入有效的数值。'; return; }
+        var c1=1.5, c2=1.5, r1=0.5, r2=0.5;
+        var nv=w*v + c1*r1*(p-x) + c2*r2*(g-x);
+        var nx=x+nv;
+        s.textContent='新速度 v = '+nv.toFixed(3)+'；新位置 x = '+nx.toFixed(3)+'（由 p 与 g 共同拉动）';
+    }
+    document.getElementById('pso-btn').addEventListener('click',calc);
+    document.querySelectorAll('[data-x]').forEach(function(b){ b.addEventListener('click',function(){ document.getElementById('pso-x').value=b.getAttribute('data-x'); document.getElementById('pso-v').value=b.getAttribute('data-v'); calc(); }); });
+    calc();
+})();
+</script>
 </body>
 </html>
