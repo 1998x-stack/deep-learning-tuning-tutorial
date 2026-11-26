@@ -5,11 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5, user-scalable=yes">
     <title>第14章 评估与验证的科学方法</title>
     <link rel="stylesheet" href="theme.css">
+    <style>
+        :root { color-scheme: light; --paper:#fffdf9; --ink:#203035; --subtle:#53676d; --accent:#147f80; --transform:#d06d4d; --structure:#7461ba; --border:#dce8e4; --surface:#f3f9f6; }
+        * { box-sizing: border-box; }
+        body { background: var(--paper); color: var(--ink); font-family: system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif; overflow-wrap: anywhere; }
+        a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+        .skip-link { position:absolute; left:1rem; top:-5rem; background:var(--ink); color:#fff; padding:.5rem 1rem; z-index:20; }
+        .skip-link:focus { top:1rem; }
+        .main-content { max-width: 820px; }
+        .article-header h1 { font-size: clamp(1.6rem,4.4vw,2.5rem); line-height:1.25; letter-spacing:-.02em; margin:.3rem 0 .7rem; color:#203035; border:0; padding:0; }
+        .dek { font-size:1.05rem; line-height:1.7; color:var(--subtle); margin:0 0 1.2rem; }
+        .main-content h2 { font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.4; color:#164e54; border-left:6px solid var(--accent); padding-left:.8rem; margin:2.6rem 0 1rem; }
+        p { line-height:1.85; }
+        pre, table { max-width:100%; overflow:auto; }
+        .main-content table { display:block; }
+        figure { margin:2rem 0; padding:1rem; background:#fff; border:1px solid var(--border); border-radius:1rem; }
+        figure svg { width:100%; height:auto; display:block; }
+        figcaption { font-size:.83rem; line-height:1.7; color:var(--subtle); border-top:1px solid var(--border); margin-top:.8rem; padding-top:.7rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .control-row { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0; }
+        .control-row button, .calc button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
+        .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
+        @media (max-width:900px) { .container { display:block !important; } .sidebar { border-right:0; } }
+        @media print { .sidebar, .control-row, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#content">跳转至正文</a>
 <div class="double-border">
 <div class="container">
-    <div class="sidebar">
+    <nav class="sidebar" aria-label="课程目录">
         <h3>🤖 课程目录</h3>
         <ul class="chapter-list">
             <li><a href="01.html">第1章 调参之道：从炼丹到科学</a></li>
@@ -41,9 +71,12 @@
             <li><a href="27.html">第27章 自动化调参与前沿趋势</a></li>
             <li><a href="28.html">第28章 综合实战：从零调优一个模型</a></li>
         </ul>
-    </div>
-    <div class="main-content">
-        <h2>评估——调参的最终裁判</h2>
+    </nav>
+    <main class="main-content" id="content"><article>
+        <header class="article-header">
+            <h1>评估——调参的最终裁判</h1>
+            <p class="dek">如果评估方法有漏洞，你在修改模型上投入的一切时间和算力，都可能是“在错误的方向上加速”。本章讲交叉验证的统计原理、数据泄露与验证集“调穿”，并给出一个可以量化信息泄露的交互实验。</p>
+        </header>
 
         <p>大家好，我是你们的讲师。我们今天要讲的主题，可能是这门课里<strong>最容易被忽视但最重要</strong>的一章——<strong>评估与验证的科学方法</strong>。</p>
 
@@ -55,11 +88,22 @@
 
         <p>这就是验证和评估的意义：如果你的评估方法有漏洞，你在修改模型上投入的一切时间和算力，都可能是<strong>在错误的方向上加速</strong>。</p>
 
-        <h3>交叉验证的统计原理</h3>
+        <h2 id="cv">交叉验证的统计原理</h2>
 
         <p>单次固定验证集的评估可能因偶然切分产生较大偏差——如果运气好，验证集恰好是最容易的样本，你会高估模型性能；反之则低估。交叉验证通过多次评估取平均来降低这种方差。</p>
 
         <p>K折交叉验证的基本思想：将数据均分为K份，每次用K-1份训练、1份验证，轮换K次，最终评估结果是K次验证的均值。K=5或K=10是最常用的选择——前者兼顾偏差与方差（验证集占20%），后者偏差更小但计算成本高一倍。</p>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="K 折交叉验证的均值与标准差公式，可横向滚动">
+            <math display="block" aria-label="K 折交叉验证的估计值 CV 等于 K 次验证损失的平均；标准差 sigma 等于各折损失与均值差的平方的平均再开根号">
+                <mrow>
+                    <mtext>CV</mtext><mo>=</mo><mfrac><mn>1</mn><mi>K</mi></mfrac><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mi>K</mi></munderover><msub><mi>L</mi><mi>k</mi></msub>
+                    <mo>,</mo>
+                    <mi>σ</mi><mo>=</mo><msqrt><mfrac><mn>1</mn><mi>K</mi></mfrac><munderover><mo>∑</mo><mrow><mi>k</mi><mo>=</mo><mn>1</mn></mrow><mi>K</mi></munderover><msup><mrow><mo>(</mo><msub><mi>L</mi><mi>k</mi></msub><mo>−</mo><mtext>CV</mtext><mo>)</mo></mrow><mn>2</mn></msup></msqrt>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1：交叉验证给出的是性能估计 <code>CV</code> 与稳定性 <code>σ</code>（各折损失的标准差）。报告结果时用“均值±标准差”（如 F1 = 0.87 ± 0.03）：σ 大说明模型对数据切分敏感，需排查数据稳定性。</p>
 
         <pre><code># 时序数据：不能用KFold，必须用TimeSeriesSplit
 from sklearn.model_selection import TimeSeriesSplit
@@ -92,7 +136,7 @@ for train_idx, val_idx in gkf.split(X, y, groups=user_ids):
             <strong>交叉验证的折数选择：</strong>K=5是大多数场景的安全起点。数据集大（10万+）且计算资源有限 → K=3；数据量中等（1000-10000）且评估精度要求高 → K=10；小数据集（&lt;1000）→ Repeated K-Fold（重复5次5折）以降低评估方差。报告结果时用"均值±标准差"格式，如"F1 = 0.87 ± 0.03"。标准差大说明模型对数据切分敏感，需要排查数据稳定性问题。
         </div>
 
-        <h3>数据泄露：假提升的最大来源</h3>
+        <h2 id="leak">数据泄露：假提升的最大来源</h2>
 
         <p>数据泄露是调参中最隐蔽、最危险的陷阱。它的表现形式多样，但本质相同：<strong>模型在训练时看到了不该看到的信息</strong>。</p>
 
@@ -102,7 +146,48 @@ for train_idx, val_idx in gkf.split(X, y, groups=user_ids):
 
         <p>解决方案：按用户/会话/模板做互斥切分——确保同一个实体（用户、模板、场景）的所有样本只在训练集或只在验证集，绝不跨越。</p>
 
-        <h3>验证集"调穿"问题</h3>
+        <figure id="leak-fig">
+            <svg role="img" aria-labelledby="lk-title lk-desc" viewBox="0 0 760 300" xmlns="http://www.w3.org/2000/svg">
+                <title id="lk-title">随机切分与按用户切分的信息泄露对比</title>
+                <desc id="lk-desc">每个方块是一个样本，每一行属于同一个用户，青色为训练集、橙色为验证集。左图随机切分时每一行（用户）都横跨了训练与验证两集，同一用户的信息从训练泄露到验证；右图按用户互斥切分，整行只属于其中一边，无泄露。</desc>
+                <rect width="760" height="300" rx="16" fill="#f3f9f6"/>
+                <text x="24" y="34" font-size="14" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">随机切分：用户横跨两边 → 泄露</text>
+                <g rx="4">
+                    <rect x="24" y="58" width="54" height="28" rx="4" fill="#147f80"/><rect x="84" y="58" width="54" height="28" rx="4" fill="#147f80"/><rect x="144" y="58" width="54" height="28" rx="4" fill="#d06d4d"/><rect x="204" y="58" width="54" height="28" rx="4" fill="#147f80"/>
+                    <rect x="24" y="94" width="54" height="28" rx="4" fill="#147f80"/><rect x="84" y="94" width="54" height="28" rx="4" fill="#d06d4d"/><rect x="144" y="94" width="54" height="28" rx="4" fill="#147f80"/><rect x="204" y="94" width="54" height="28" rx="4" fill="#147f80"/>
+                    <rect x="24" y="130" width="54" height="28" rx="4" fill="#d06d4d"/><rect x="84" y="130" width="54" height="28" rx="4" fill="#d06d4d"/><rect x="144" y="130" width="54" height="28" rx="4" fill="#147f80"/><rect x="204" y="130" width="54" height="28" rx="4" fill="#147f80"/>
+                    <rect x="24" y="166" width="54" height="28" rx="4" fill="#147f80"/><rect x="84" y="166" width="54" height="28" rx="4" fill="#147f80"/><rect x="144" y="166" width="54" height="28" rx="4" fill="#147f80"/><rect x="204" y="166" width="54" height="28" rx="4" fill="#d06d4d"/>
+                </g>
+                <text x="404" y="34" font-size="14" font-weight="600" fill="#203035" font-family="system-ui,'PingFang SC',sans-serif">按用户切分：整行只属一边 → 无泄露</text>
+                <g rx="4">
+                    <rect x="404" y="58" width="54" height="28" rx="4" fill="#147f80"/><rect x="464" y="58" width="54" height="28" rx="4" fill="#147f80"/><rect x="524" y="58" width="54" height="28" rx="4" fill="#147f80"/><rect x="584" y="58" width="54" height="28" rx="4" fill="#147f80"/>
+                    <rect x="404" y="94" width="54" height="28" rx="4" fill="#147f80"/><rect x="464" y="94" width="54" height="28" rx="4" fill="#147f80"/><rect x="524" y="94" width="54" height="28" rx="4" fill="#147f80"/><rect x="584" y="94" width="54" height="28" rx="4" fill="#147f80"/>
+                    <rect x="404" y="130" width="54" height="28" rx="4" fill="#d06d4d"/><rect x="464" y="130" width="54" height="28" rx="4" fill="#d06d4d"/><rect x="524" y="130" width="54" height="28" rx="4" fill="#d06d4d"/><rect x="584" y="130" width="54" height="28" rx="4" fill="#d06d4d"/>
+                    <rect x="404" y="166" width="54" height="28" rx="4" fill="#d06d4d"/><rect x="464" y="166" width="54" height="28" rx="4" fill="#d06d4d"/><rect x="524" y="166" width="54" height="28" rx="4" fill="#d06d4d"/><rect x="584" y="166" width="54" height="28" rx="4" fill="#d06d4d"/>
+                </g>
+                <g font-family="system-ui,'PingFang SC',sans-serif" font-size="12">
+                    <rect x="24" y="220" width="14" height="14" fill="#147f80"/><text x="44" y="231" fill="#203035">训练集样本</text>
+                    <rect x="150" y="220" width="14" height="14" fill="#d06d4d"/><text x="170" y="231" fill="#203035">验证集样本</text>
+                    <text x="300" y="231" fill="#53676d">每一行 = 同一个用户，每个方块 = 一个样本</text>
+                </g>
+            </svg>
+            <figcaption>切分方式决定信息是否泄露（为教学示意）：左图随机切分下，每个用户的样本被拆到训练与验证两边，模型可以“记住”该用户的短期偏好从而在验证集上虚高；右图按用户互斥切分后，同一用户的全部样本只落在一侧，验证集真正度量的是对新用户的泛化。时序数据同理，应换成按时间切分。</figcaption>
+        </figure>
+
+        <div class="calc">
+            <label>用户数<input id="cv-users" type="number" value="1000" step="100" min="1"></label>
+            <label>每用户样本数 m<input id="cv-per" type="number" value="5" step="1" min="1"></label>
+            <label>验证集比例 r<input id="cv-ratio" type="number" value="0.2" step="0.05" min="0.01" max="0.9"></label>
+            <button id="cv-calc-btn" type="button">计算泄露</button>
+        </div>
+        <div class="control-row">
+            <button type="button" data-split="random">随机切分</button>
+            <button type="button" data-split="group">按用户切分（GroupKFold）</button>
+        </div>
+        <p class="status" id="cv-status" role="status" aria-live="polite"></p>
+        <p class="note">交互实验：随机切分下，一个用户同时出现在训练与验证的概率为 1 − r^m − (1−r)^m（各样本独立落入验证集）；“按用户切分”则为 0。默认值（1000 用户 × 5 样本 × 20% 验证集）下约六成用户会横跨两边——这正是离线 AUC 虚高的来源。</p>
+
+        <h2 id="tuned">验证集“调穿”问题</h2>
 
         <p>"很多人嘴上说没有用测试集，实际上每天看验证集调参数，调到最后验证集也成了训练的一部分。"——这是每个长期项目的通病。</p>
 
@@ -116,7 +201,7 @@ for train_idx, val_idx in gkf.split(X, y, groups=user_ids):
             <strong>重要原则：</strong>验证集用于调参，测试集只用于最终评估。永远不要根据测试集的结果来决定是否回滚调参——那样测试集就变成了第二个验证集。如果一定要在测试集上做决策，那每次决策后，你就需要重新收集一份新的测试集。
         </div>
 
-        <h3>离线指标到线上效果的鸿沟</h3>
+        <h2 id="gap">离线指标到线上效果的鸿沟</h2>
 
         <p>Offline指标好但Online差——这是所有调参工程师迟早会遇到的问题。原因通常是以下之一：</p>
 
@@ -191,13 +276,42 @@ for train_idx, val_idx in gkf.split(X, y, groups=user_ids):
 
         <p>下一章我们进入<strong>训练曲线全解读</strong>。学会了如何评估模型，接下来我们将学习如何通过观察训练过程中的loss曲线、准确率曲线和梯度分布来诊断模型状态——训练曲线是你能拥有的最实时、最丰富的调试工具。</p>
 
+        <section id="references" aria-labelledby="ref-heading">
+            <h2 id="ref-heading">参考资料</h2>
+            <ul>
+                <li>Kohavi,《A Study of Cross-Validation and Bootstrap for Accuracy Estimation and Model Selection》(1995), <a href="https://www.ijcai.org/Proceedings/95-2/Papers/016.pdf">IJCAI'95</a>。K 折交叉验证的偏差-方差权衡与 K=5/10 的经验结论。</li>
+                <li>Roberts et al.,《Cross-validation strategies for data with temporal, spatial, hierarchical, or phylogenetic structure》(2017), <a href="https://doi.org/10.1111/ecog.02881">Ecography 40:913</a>。时序/分组数据的切分原则（TimeSeriesSplit、GroupKFold 的思想来源）。</li>
+                <li>Kaufman et al.,《Leakage in Data Mining: Formulation, Detection, and Avoidance》(2012), <a href="https://doi.org/10.1145/2020408.2020496">ACM TKDD</a>。数据泄露的系统分类。</li>
+                <li>公式 1 为交叉验证均值/标准差的定义；图 1 与交互实验均为<strong>教学示意</strong>（泄露概率按“各样本独立落入验证集”的二项近似计算，未计入实际分层策略）。</li>
+            </ul>
+        </section>
+
         <div class="footer-nav">
             <a href="13.html">← 上一章</a>
             <a href="index.html">📖 返回目录</a>
             <a href="15.html">下一章 →</a>
         </div>
-    </div>
+    </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function val(id){ return parseFloat(document.getElementById(id).value); }
+    function calc(mode){
+        var users=val('cv-users'), m=val('cv-per'), r=val('cv-ratio');
+        var s=document.getElementById('cv-status');
+        if(!(users>0)||!(m>0)||!(r>0&&r<1)){ s.textContent='请填写有效的用户数、样本数与验证集比例（0<r<1）。'; return; }
+        if(mode==='group'){ s.textContent='按用户互斥切分（GroupKFold）：横跨训练/验证的用户 = 0，信息泄露为 0。'; return; }
+        var cross=1-Math.pow(r,m)-Math.pow(1-r,m); if(cross<0) cross=0;
+        s.textContent='随机切分：约 '+(cross*100).toFixed(1)+'% 的用户（约 '+Math.round(users*cross)+' 个）同时出现在训练与验证集——同一用户的信息从训练泄漏到验证，离线指标会虚高。';
+    }
+    var mode='random';
+    document.getElementById('cv-calc-btn').addEventListener('click', function(){ calc(mode); });
+    document.querySelectorAll('[data-split]').forEach(function(b){
+        b.addEventListener('click', function(){ mode=b.getAttribute('data-split'); calc(mode); });
+    });
+    calc(mode);
+})();
+</script>
 </body>
 </html>
