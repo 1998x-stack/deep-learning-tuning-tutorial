@@ -26,6 +26,7 @@
         .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
         .calc .status { min-height:1.5em; font-weight:600; color:var(--accent); }
         .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
         @media (max-width:900px) { .container { display:block !important; } .sidebar { position:static; border-right:0; } }
         @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important; } }
         @media print { .sidebar, .calc, .skip-link { display:none !important; } figure { break-inside:avoid; } }
@@ -89,6 +90,21 @@
         <p>小批量梯度是真实梯度的无偏估计——期望等于真实梯度，但存在方差：</p>
 
         <pre><code>Var(∇f_B(θ)) = Var(∇f(θ)) / B</code></pre>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="小批量梯度估计与方差公式，可横向滚动">
+            <math display="block" aria-label="小批量梯度等于 B 分之 1 乘以 i 从 1 到 B 的梯度求和；其方差等于单样本梯度方差除以 B">
+                <mrow>
+                    <mi>∇</mi><msub><mi>f</mi><mi>B</mi></msub><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>=</mo>
+                    <mfrac><mn>1</mn><mi>B</mi></mfrac>
+                    <munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>B</mi></munderover>
+                    <mi>∇</mi><msub><mi>f</mi><mi>i</mi></msub><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo>
+                    <mo>,</mo><mspace width="1.2em"/>
+                    <mi>Var</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>∇</mi><msub><mi>f</mi><mi>B</mi></msub><mo stretchy="false">)</mo></mrow><mo>=</mo>
+                    <mfrac><mrow><mi>Var</mi><mo>⁡</mo><mrow><mo stretchy="false">(</mo><mi>∇</mi><msub><mi>f</mi><mi>i</mi></msub><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo></mrow></mrow><mi>B</mi></mfrac>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1：小批量梯度是真实梯度的无偏估计（期望等于 ∇f(θ)），但方差与批大小 B 成反比——B 翻倍、方差减半。这正是“用计算量换梯度精度”的定量表述，也是下图中方差随 B 下降的依据。</p>
 
         <p>梯度估计的方差与batch size成<strong>反比</strong>。batch扩大一倍，方差减半。这就是批大小的统计学本质：<strong>你在用计算量换取梯度估计的精度</strong>。</p>
 
