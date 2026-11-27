@@ -26,6 +26,11 @@
         .control-row button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
         button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
         .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .note { font-size:.85rem; color:var(--subtle); }
         @media (max-width:900px) { .container { display:block; } .sidebar { border-right:0; } }
         @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
     </style>
@@ -156,6 +161,36 @@
 
         # 按值裁剪（每个梯度分量独立截断，仅用于极端情况）
         torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=0.5)</code></pre>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="按范数梯度裁剪公式，可横向滚动">
+            <math display="block" aria-label="按 L2 范数裁剪：梯度乘以 1 与 c 除以梯度范数两者的较小值；梯度范数为各分量平方和的开方">
+                <mrow>
+                    <mi>g</mi><mo>←</mo><mi>g</mi><mo>⋅</mo><mi>min</mi><mo>⁡</mo>
+                    <mrow><mo>(</mo><mn>1</mn><mo>,</mo><mfrac><mi>c</mi><msub><mrow><mo>‖</mo><mi>g</mi><mo>‖</mo></mrow><mn>2</mn></msub></mfrac><mo>)</mo></mrow>
+                    <mo>,</mo><mspace width="1.2em"/>
+                    <msub><mrow><mo>‖</mo><mi>g</mi><mo>‖</mo></mrow><mn>2</mn></msub><mo>=</mo>
+                    <msqrt><munder><mo>∑</mo><mi>i</mi></munder><msubsup><mi>g</mi><mi>i</mi><mn>2</mn></msubsup></msqrt>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1（按范数裁剪）：c 即代码里的 max_norm。当 ‖g‖₂ ≤ c 时缩放系数为 1（不缩放），超过时整体等比缩小到 c。关键是它只缩放幅度、不改变方向，所以不会像逐分量按值裁剪那样扭曲更新方向。下方计算器按此式估算缩放比例。</p>
+
+        <div class="calc" role="group" aria-label="梯度裁剪计算器">
+            <label>梯度 L2 范数 ‖g‖₂
+                <input id="gc-norm" type="number" min="0" max="1e6" step="0.1" value="5" inputmode="decimal">
+            </label>
+            <label>max_norm c
+                <input id="gc-c" type="number" min="0.01" max="100" step="0.1" value="1" inputmode="decimal">
+            </label>
+            <button id="gc-btn" type="button">计算</button>
+        </div>
+        <p class="status" id="gc-status" role="status" aria-live="polite"></p>
+        <div class="control-row" role="group" aria-label="max_norm 预设">
+            <button type="button" data-c="1">c = 1.0</button>
+            <button type="button" data-c="0.5">c = 0.5</button>
+            <button type="button" data-c="0.2">c = 0.2（PPO）</button>
+        </div>
+        <p class="note">交互为教学示意：缩放系数 = min(1, c/‖g‖₂)，裁剪后范数 = min(‖g‖₂, c)。若 ‖g‖₂ 恰好满足 max_norm 阈值，则不会触发裁剪。</p>
 
         <p><code>max_norm=1.0</code>是一个保守的默认值。来自DeepSeek和LLaMA等主流训练实践的推荐——大多数时候1.0能有效拦截异常梯度而对正常更新影响很小。对于PPO强化学习，常用更激进的0.2；对于不同规模的模型，先用1.0试，观察裁剪触发比例。如果超过30%的step触发了裁剪，说明阈值太低或梯度分布本身就有问题。</p>
 
@@ -299,5 +334,23 @@
     </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function calc(){
+        var g=parseFloat(document.getElementById('gc-norm').value);
+        var c=parseFloat(document.getElementById('gc-c').value);
+        var s=document.getElementById('gc-status');
+        if(!isFinite(g)||!isFinite(c)||g<0||c<=0){ s.textContent='请输入非负的 ‖g‖₂ 与正的 max_norm c。'; return; }
+        var scale=Math.min(1,c/g);
+        var after=g*scale;
+        s.textContent='缩放系数 min(1, c/‖g‖₂) = '+scale.toFixed(4)+'；裁剪后范数 = '+after.toFixed(4)+'；'+(g>c?'触发裁剪。':'未触发裁剪。');
+    }
+    document.getElementById('gc-btn').addEventListener('click',calc);
+    document.getElementById('gc-norm').addEventListener('change',calc);
+    document.getElementById('gc-c').addEventListener('change',calc);
+    document.querySelectorAll('[data-c]').forEach(function(b){ b.addEventListener('click',function(){ document.getElementById('gc-c').value=b.getAttribute('data-c'); calc(); }); });
+    calc();
+})();
+</script>
 </body>
 </html>
