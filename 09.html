@@ -26,6 +26,11 @@
         .control-row button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
         button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
         .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .note { font-size:.85rem; color:var(--subtle); }
         @media (max-width:900px) { .container { display:block; } .sidebar { border-right:0; } }
         @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
     </style>
@@ -92,6 +97,37 @@ loss = original_loss + 0.5 * λ * ||θ||²
 # L1正则化（Lasso）
 loss = original_loss + λ * |θ|
 # 梯度更新：θ = θ - lr * ∇original_loss - lr * λ * sign(θ)</code></pre>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="L2 正则化目标函数与梯度，可横向滚动">
+            <math display="block" aria-label="L2 正则化目标：原损失加上二分之 lambda 乘以参数二范数的平方；其梯度为原梯度加上 lambda 乘以参数">
+                <mrow>
+                    <mi>L</mi><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>=</mo>
+                    <msub><mi>L</mi><mn>0</mn></msub><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>+</mo>
+                    <mfrac><mi>λ</mi><mn>2</mn></mfrac>
+                    <msup><mrow><mo stretchy="false">‖</mo><mi>θ</mi><mo stretchy="false">‖</mo></mrow><mn>2</mn></msup>
+                    <mo>,</mo><mspace width="1.2em"/>
+                    <mo>∇</mo><mi>L</mi><mo>=</mo><mo>∇</mo><msub><mi>L</mi><mn>0</mn></msub><mo>+</mo><mi>λ</mi><mi>θ</mi>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1（L2 权重衰减，Loshchilov &amp; Hutter 2019）：惩罚项的梯度 λθ 与数据梯度 ∇L₀ 相加。在 SGD 中它等价于每步把权重乘 (1 − lr·λ)（即真正的“衰减”）；而在 Adam 中两者会一起经过 m/√v 的自适应缩放，才引出下面 AdamW 的解耦修正。</p>
+
+        <div class="calc" role="group" aria-label="权重衰减步长计算器">
+            <label>学习率 lr
+                <input id="wd-lr" type="number" min="0.00001" max="1" step="0.0001" value="0.0001" inputmode="decimal">
+            </label>
+            <label>权重衰减 λ
+                <input id="wd-lam" type="number" min="0" max="1" step="0.001" value="0.01" inputmode="decimal">
+            </label>
+            <button id="wd-btn" type="button">计算</button>
+        </div>
+        <div class="control-row" role="group" aria-label="λ 预设">
+            <button type="button" data-lam="0.0001">λ = 1e-4</button>
+            <button type="button" data-lam="0.01">λ = 0.01</button>
+            <button type="button" data-lam="0.1">λ = 0.1</button>
+        </div>
+        <p class="status" id="wd-status" role="status" aria-live="polite"></p>
+        <p class="note">交互为教学示意，按解耦形式 θ ← (1 − lr·λ)·θ 估算每步的权重缩小比例，以及衰减到一半所需步数（即 (1−lr·λ)ⁿ = 0.5）。Adam+L2 耦合形式的实际衰减还取决于自适应缩放 m/√v，此处不建模。</p>
 
         <p>这两种正则化的几何直觉非常直观。假设你有一个二维参数空间，损失函数的等高线呈椭圆分布。L2正则化相当于在原点周围画了一个<strong>圆形约束</strong>——最优解被拉向原点，所有参数均匀缩小。而L1正则化画了一个<strong>菱形约束</strong>——菱形的尖角在坐标轴上，最优解更容易落在坐标轴上，使得部分参数变为0，产生稀疏解。</p>
 
@@ -278,5 +314,25 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=0.01)
     </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function calc(){
+        var lr=parseFloat(document.getElementById('wd-lr').value);
+        var lam=parseFloat(document.getElementById('wd-lam').value);
+        var s=document.getElementById('wd-status');
+        if(!isFinite(lr)||!isFinite(lam)||lr<0||lam<0){ s.textContent='请输入非负的 lr 与 λ。'; return; }
+        var r=lr*lam;
+        if(r<=0){ s.textContent='lr·λ = 0：权重不发生衰减。'; return; }
+        if(r>=1){ s.textContent='lr·λ ≥ 1：单步即把权重清零。'; return; }
+        var half=Math.log(0.5)/Math.log(1-r);
+        s.textContent='每步缩小比例 lr·λ = '+r.toPrecision(3)+'；权重衰减到一半约需 '+half.toFixed(1)+' 步。';
+    }
+    document.getElementById('wd-btn').addEventListener('click',calc);
+    document.getElementById('wd-lr').addEventListener('change',calc);
+    document.getElementById('wd-lam').addEventListener('change',calc);
+    document.querySelectorAll('[data-lam]').forEach(function(b){ b.addEventListener('click',function(){ document.getElementById('wd-lam').value=b.getAttribute('data-lam'); calc(); }); });
+    calc();
+})();
+</script>
 </body>
 </html>
