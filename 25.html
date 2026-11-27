@@ -26,6 +26,11 @@
         .control-row button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
         button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
         .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .note { font-size:.85rem; color:var(--subtle); }
         @media (max-width:900px) { .container { display:block; } .sidebar { border-right:0; } }
         @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
     </style>
@@ -156,6 +161,45 @@
         <pre><code>L_DPO = -E[ log σ( β · log(π_θ(y_w|x) / π_ref(y_w|x))
                          - β · log(π_θ(y_l|x) / π_ref(y_l|x)) ) ]</code></pre>
 
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="DPO 损失公式，可横向滚动">
+            <math display="block" aria-label="DPO 损失：负的期望，对数 sigmoid，括号内为 chosen 响应的对数比减去 rejected 响应的对数比，两者各乘 beta">
+                <mrow>
+                    <msub><mi>L</mi><mtext>DPO</mtext></msub><mo>=</mo><mo>−</mo><mi>E</mi>
+                    <mrow><mo>[</mo>
+                        <mi>log</mi><mo>⁡</mo><mi>σ</mi>
+                        <mrow><mo>(</mo>
+                            <mi>β</mi><mi>log</mi><mo>⁡</mo>
+                            <mfrac><mrow><msub><mi>π</mi><mi>θ</mi></msub><mo>(</mo><msub><mi>y</mi><mi>w</mi></msub><mo>∣</mo><mi>x</mi><mo>)</mo></mrow><mrow><msub><mi>π</mi><mtext>ref</mtext></msub><mo>(</mo><msub><mi>y</mi><mi>w</mi></msub><mo>∣</mo><mi>x</mi><mo>)</mo></mrow></mfrac>
+                            <mo>−</mo>
+                            <mi>β</mi><mi>log</mi><mo>⁡</mo>
+                            <mfrac><mrow><msub><mi>π</mi><mi>θ</mi></msub><mo>(</mo><msub><mi>y</mi><mi>l</mi></msub><mo>∣</mo><mi>x</mi><mo>)</mo></mrow><mrow><msub><mi>π</mi><mtext>ref</mtext></msub><mo>(</mo><msub><mi>y</mi><mi>l</mi></msub><mo>∣</mo><mi>x</mi><mo>)</mo></mrow></mfrac>
+                        <mo>)</mo></mrow>
+                    <mo>]</mo></mrow>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1（DPO，Rafailov et al. 2023）：σ 为 logistic 函数，y_w / y_l 分别为偏好与被拒响应。括号内就是隐式奖励的差值 margin = β·(log-ratio_w − log-ratio_l)；margin 越大，偏好损失越小。下方计算器按此式估算 margin 与损失。</p>
+
+        <div class="calc" role="group" aria-label="DPO margin 与损失计算器">
+            <label>β
+                <input id="dpo-b" type="number" min="0.01" max="2" step="0.05" value="0.1" inputmode="decimal">
+            </label>
+            <label>chosen 对数比 log-ratio_w
+                <input id="dpo-w" type="number" min="-5" max="5" step="0.1" value="0.5" inputmode="decimal">
+            </label>
+            <label>rejected 对数比 log-ratio_l
+                <input id="dpo-l" type="number" min="-5" max="5" step="0.1" value="-0.5" inputmode="decimal">
+            </label>
+            <button id="dpo-btn" type="button">计算</button>
+        </div>
+        <p class="status" id="dpo-status" role="status" aria-live="polite"></p>
+        <div class="control-row" role="group" aria-label="β 预设">
+            <button type="button" data-b="0.1">β = 0.1</button>
+            <button type="button" data-b="0.3">β = 0.3</button>
+            <button type="button" data-b="0.5">β = 0.5</button>
+        </div>
+        <p class="note">交互为教学示意：margin = β·(log-ratio_w − log-ratio_l)；损失 = −log σ(margin) = softplus(−margin)；偏好正确率（隐式）= σ(margin)。默认值仅为演示，非某次实验的实测数据。</p>
+
         <p>直觉上：DPO通过增大chosen响应的概率（相对于π_ref）并降低rejected响应的概率，隐式地学习了一个奖励函数。整个过程不需要单独训练RM，也不需要PPO的Actor-Critic架构——只需要策略+参考两个模型。</p>
 
         <p><strong>Beta参数</strong>是DPO最重要的超参数。Beta控制隐式奖励的温度——Beta越大，更新越保守；Beta越小，模型更大胆地拟合偏好数据。推荐范围0.1-0.5，从0.1开始尝试。</p>
@@ -283,5 +327,27 @@
     </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function sigmoid(z){ return 1/(1+Math.exp(-z)); }
+    function calc(){
+        var b=parseFloat(document.getElementById('dpo-b').value);
+        var w=parseFloat(document.getElementById('dpo-w').value);
+        var l=parseFloat(document.getElementById('dpo-l').value);
+        var s=document.getElementById('dpo-status');
+        if(!isFinite(b)||!isFinite(w)||!isFinite(l)||b<=0){ s.textContent='请输入 β>0 与两个对数比。'; return; }
+        var margin=b*(w-l);
+        var loss=-Math.log(sigmoid(margin));
+        var acc=sigmoid(margin);
+        s.textContent='margin = '+margin.toFixed(4)+'；损失 = '+loss.toFixed(4)+'；隐式偏好正确率 = '+(acc*100).toFixed(2)+'%。';
+    }
+    document.getElementById('dpo-btn').addEventListener('click',calc);
+    document.getElementById('dpo-b').addEventListener('change',calc);
+    document.getElementById('dpo-w').addEventListener('change',calc);
+    document.getElementById('dpo-l').addEventListener('change',calc);
+    document.querySelectorAll('[data-b]').forEach(function(x){ x.addEventListener('click',function(){ document.getElementById('dpo-b').value=x.getAttribute('data-b'); calc(); }); });
+    calc();
+})();
+</script>
 </body>
 </html>
