@@ -26,6 +26,11 @@
         .control-row button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
         button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
         .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .note { font-size:.85rem; color:var(--subtle); }
         @media (max-width:900px) { .container { display:block; } .sidebar { border-right:0; } }
         @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
     </style>
@@ -145,6 +150,34 @@ class PReLU(nn.Module):
         <p><strong>SiLU/Swish</strong>是另一个重要的平滑激活函数。SiLU(x) = x * σ(x)，其中σ(x)是sigmoid函数。它由Google Brain在2017年提出（当时称为Swish），被EfficientNet等模型采用。</p>
 
         <p>SiLU的核心特性是<strong>自门控（Self-Gating）</strong>机制：不同于sigmoid作为外部门控（将输入先变换再与输入相乘），SiLU本身就是在做门控——输入值自己控制自己的通过程度。当x较大时，σ(x)接近1，SiLU(x) ≈ x；当x为很大的负数时，σ(x)接近0，SiLU(x) ≈ 0；在中间区域，SiLU(x)略微小于0（允许极小负数通过），形成了一个非单调的曲线。</p>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="GELU 与 SiLU 的定义式，可横向滚动">
+            <math display="block" aria-label="GELU 定义为 x 乘以标准正态累积分布函数 Φ(x)；SiLU 定义为 x 乘以 sigmoid σ(x)，其中 σ(x) 等于 1 除以 1 加 e 的负 x 次方">
+                <mrow>
+                    <mi>GELU</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mi>x</mi><mo>⋅</mo><mi>Φ</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo>
+                    <mo>,</mo><mspace width="1.2em"/>
+                    <mi>SiLU</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mi>x</mi><mo>⋅</mo><mi>σ</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo>
+                    <mo>,</mo><mspace width="1.2em"/>
+                    <mi>σ</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo>
+                    <mfrac><mn>1</mn><mrow><mn>1</mn><mo>+</mo><msup><mi>e</mi><mrow><mo>−</mo><mi>x</mi></mrow></msup></mrow></mfrac>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1（Hendrycks &amp; Gimpel 2016；Ramachandran et al. 2017）：两者都是“自门控”形式 x 乘以一个 (0,1) 区间内的门控函数。ReLU 的门控是硬阶跃 1[x&gt;0]，GELU / SiLU 则用平滑的 Φ(x) / σ(x) 代替。下面的对比图与计算器均按这些定义式绘制与计算。</p>
+
+        <div class="calc" role="group" aria-label="激活函数取值计算器">
+            <label>输入 x
+                <input id="act-x" type="number" min="-10" max="10" step="0.1" value="1" inputmode="decimal">
+            </label>
+            <button id="act-btn" type="button">计算</button>
+        </div>
+        <div class="control-row" role="group" aria-label="x 预设">
+            <button type="button" data-x="-2">x = −2</button>
+            <button type="button" data-x="0">x = 0</button>
+            <button type="button" data-x="2">x = 2</button>
+        </div>
+        <p class="status" id="act-status" role="status" aria-live="polite"></p>
+        <p class="note">交互为教学示意：SiLU 按 x·σ(x) 计算；GELU 此处用工程中常用的 tanh 近似 0.5x(1+tanh(√(2/π)(x+0.044715x³)))，与 PyTorch 的 approximate='tanh' 一致，故与精确的 x·Φ(x) 在小数位上可能有极小差异。</p>
 
         <figure id="act-figure">
             <svg role="img" aria-labelledby="af-title af-desc" viewBox="0 0 760 330" xmlns="http://www.w3.org/2000/svg">
@@ -276,5 +309,21 @@ class PReLU(nn.Module):
     </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function silu(x){ return x/(1+Math.exp(-x)); }
+    function gelu(x){ var t=Math.sqrt(2/Math.PI)*(x+0.044715*Math.pow(x,3)); return 0.5*x*(1+Math.tanh(t)); }
+    function calc(){
+        var x=parseFloat(document.getElementById('act-x').value);
+        var s=document.getElementById('act-status');
+        if(!isFinite(x)){ s.textContent='请输入一个数值 x。'; return; }
+        s.textContent='x='+x+'：ReLU='+Math.max(0,x).toFixed(4)+'；GELU='+gelu(x).toFixed(4)+'；SiLU='+silu(x).toFixed(4)+'。';
+    }
+    document.getElementById('act-btn').addEventListener('click',calc);
+    document.getElementById('act-x').addEventListener('change',calc);
+    document.querySelectorAll('[data-x]').forEach(function(b){ b.addEventListener('click',function(){ document.getElementById('act-x').value=b.getAttribute('data-x'); calc(); }); });
+    calc();
+})();
+</script>
 </body>
 </html>
