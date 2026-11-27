@@ -26,6 +26,11 @@
         .control-row button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
         button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
         .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
+        .calc { display:flex; flex-wrap:wrap; gap:.8rem; align-items:flex-end; margin:1rem 0; }
+        .calc label { display:flex; flex-direction:column; font-size:.85rem; color:var(--subtle); gap:.25rem; }
+        .calc input { font:inherit; padding:.4rem .6rem; width:9rem; border:1px solid var(--border); border-radius:.5rem; }
+        .note { font-size:.85rem; color:var(--subtle); }
         @media (max-width:900px) { .container { display:block; } .sidebar { border-right:0; } }
         @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
     </style>
@@ -93,6 +98,39 @@
 # 目标：0或1
 # 梯度：∂L/∂z = 2 * (σ(z) - y) * σ(z) * (1 - σ(z))
 # 当σ(z)接近0或1时，σ(z)*(1-σ(z))接近0 → 梯度消失</code></pre>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="交叉熵与 Softmax 梯度公式，可横向滚动">
+            <math display="block" aria-label="交叉熵损失为负的求和 y_i 乘 log p_i；p_i 是 z_i 的 softmax；损失对 logit z_i 的偏导等于 p_i 减 y_i">
+                <mrow>
+                    <msub><mi>L</mi><mtext>CE</mtext></msub><mo>=</mo><mo>−</mo>
+                    <munder><mo>∑</mo><mi>i</mi></munder>
+                    <msub><mi>y</mi><mi>i</mi></msub><mi>log</mi><mo>⁡</mo><msub><mi>p</mi><mi>i</mi></msub>
+                    <mo>,</mo><mspace width="1em"/>
+                    <msub><mi>p</mi><mi>i</mi></msub><mo>=</mo>
+                    <mfrac><msup><mi>e</mi><msub><mi>z</mi><mi>i</mi></msub></msup><mrow><munder><mo>∑</mo><mi>j</mi></munder><msup><mi>e</mi><msub><mi>z</mi><mi>j</mi></msub></msup></mrow></mfrac>
+                    <mo>,</mo><mspace width="1em"/>
+                    <mfrac><mrow><mo>∂</mo><mi>L</mi></mrow><mrow><mo>∂</mo><msub><mi>z</mi><mi>i</mi></msub></mrow></mfrac><mo>=</mo><msub><mi>p</mi><mi>i</mi></msub><mo>−</mo><msub><mi>y</mi><mi>i</mi></msub>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1（交叉熵 + Softmax）：logit 的梯度恰好是 (p_i − y_i)，与类别概率成正比而与 sigmoid 导数无关；这是分类任务几乎不用 MSE 的根本原因。下方的二分类计算器按此式与 MSE 的 sigmoid 梯度作数值对比。</p>
+
+        <div class="calc" role="group" aria-label="CE 与 MSE 梯度对比计算器">
+            <label>sigmoid 输入 z
+                <input id="ls-z" type="number" min="-8" max="8" step="0.1" value="0" inputmode="decimal">
+            </label>
+            <label>真实标签 y（0 或 1）
+                <input id="ls-y" type="number" min="0" max="1" step="1" value="1" inputmode="decimal">
+            </label>
+            <button id="ls-btn" type="button">计算</button>
+        </div>
+        <p class="status" id="ls-status" role="status" aria-live="polite"></p>
+        <div class="control-row" role="group" aria-label="z 预设">
+            <button type="button" data-z="0">z = 0</button>
+            <button type="button" data-z="2">z = 2</button>
+            <button type="button" data-z="-4">z = −4（已饱和）</button>
+        </div>
+        <p class="note">交互为教学示意（二分类）：CE 梯度 = σ(z) − y；MSE 梯度 = 2(σ(z) − y)·σ(z)·(1 − σ(z))。当 σ(z) 饱和（接近 0/1）时，MSE 梯度被 σ(1−σ) 额外压小，而 CE 梯度不受此影响。</p>
 
         <p>交叉熵配合softmax的梯度是 <strong>(pred - target)</strong>——极其简洁。当预测正确率很高时，pred接近target，梯度小（已经学好了不需要大更新）；当预测错误时，pred和target差距大，梯度大（需要大幅修正）。这种自适应的梯度缩放正是分类任务所需要的。</p>
 
@@ -293,5 +331,24 @@ def label_smoothing_loss(logits, targets, alpha=0.1):
     </article></main>
 </div>
 </div>
+<script>
+(function(){
+    function calc(){
+        var z=parseFloat(document.getElementById('ls-z').value);
+        var y=parseFloat(document.getElementById('ls-y').value);
+        var s=document.getElementById('ls-status');
+        if(!isFinite(z)||(y!==0&&y!==1)){ s.textContent='请输入数值 z，以及 y=0 或 y=1。'; return; }
+        var p=1/(1+Math.exp(-z));
+        var ce=p-y;
+        var mse=2*(p-y)*p*(1-p);
+        s.textContent='σ(z)='+p.toFixed(4)+'；CE 梯度='+ce.toFixed(4)+'；MSE 梯度='+mse.toFixed(4)+'（|MSE|/|CE|='+(Math.abs(ce)>1e-9?(Math.abs(mse)/Math.abs(ce)).toFixed(3):'—')+'）。';
+    }
+    document.getElementById('ls-btn').addEventListener('click',calc);
+    document.getElementById('ls-z').addEventListener('change',calc);
+    document.getElementById('ls-y').addEventListener('change',calc);
+    document.querySelectorAll('[data-z]').forEach(function(b){ b.addEventListener('click',function(){ document.getElementById('ls-z').value=b.getAttribute('data-z'); calc(); }); });
+    calc();
+})();
+</script>
 </body>
 </html>
