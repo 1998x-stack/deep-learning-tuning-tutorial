@@ -26,6 +26,8 @@
         .control-row button { font:inherit; font-size:.9rem; cursor:pointer; padding:.5rem .85rem; border:1px solid var(--border); border-radius:.5rem; background:#fff; color:var(--ink); }
         button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
         .status { min-height:1.5em; font-weight:600; color:var(--accent); }
+        .note { font-size:.85rem; color:var(--subtle); }
+        .math-scroll, [data-math-scroll] { display:block; max-width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:.2rem; }
         @media (max-width:900px) { .container { display:block; } .sidebar { border-right:0; } }
         @media print { .sidebar, .control-row, .skip-link { display:none !important; } figure { break-inside:avoid; } }
     </style>
@@ -85,6 +87,18 @@
 
         <pre><code>x̂ = (x - μ) / √(σ² + ε)
         y = γ · x̂ + β</code></pre>
+
+        <div class="math-scroll" data-math-scroll tabindex="0" role="region" aria-label="归一化标准化公式，可横向滚动">
+            <math display="block" aria-label="归一化：x 帽 等于 x 减均值 μ 除以标准差根号下 σ 平方加 ε；再乘以 γ 加 β 得到输出 y">
+                <mrow>
+                    <mover><mi>x</mi><mo>^</mo></mover><mo>=</mo>
+                    <mfrac><mrow><mi>x</mi><mo>−</mo><mi>μ</mi></mrow><msqrt><msup><mi>σ</mi><mn>2</mn></msup><mo>+</mo><mi>ε</mi></msqrt></mfrac>
+                    <mo>,</mo><mspace width="1.2em"/>
+                    <mi>y</mi><mo>=</mo><mi>γ</mi><mover><mi>x</mi><mo>^</mo></mover><mo>+</mo><mi>β</mi>
+                </mrow>
+            </math>
+        </div>
+        <p class="note">公式 1：先标准化（减均值、除标准差，ε 防除零），再仿射变换（γ、β 可学习，用于恢复表征能力）。BN / LN / GN 的差别不在这个式子本身，而在 μ 与 σ² 跨哪些维度统计——这正是下方选型与图示要回答的问题。</p>
 
         <p>其中μ和σ²是统计量，ε是防止除零的小常数，γ和β是可学习参数（恢复表征能力）。不同归一化方法的根本区别在于——<strong>μ和σ²在哪个维度上计算</strong>。</p>
 
